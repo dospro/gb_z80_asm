@@ -30,12 +30,14 @@
 #include<string.h>
 #include<ctype.h>
 #include"opcodes.h"
+#include "routine.h"
+#include "jumps.h"
 
 /*globals*/
 FILE *asm_file, *gb_file;
 int assemble(FILE *in, FILE *out);
 int op_compare(char *opcode_name, char *arguments);
-int process_all(char *opcode, char *arg1, char *arg2, char *final_arg);
+int process_all(char *opcode, char *arg1, char *arg2, char *final_arg, int line_number);
 int atoh(char *number);
 int main(int argc, char *argv[])
 {
@@ -117,7 +119,7 @@ int n_activator=0, nn_activator=0, n, nn;//This are needed when there is more
 int n_activator2=0, nn_activator2=0, n2, nn2;
 int bit_indicator=0, bit_number;//This is used to stor the bit number to set, check or test
 int bit_indicator2=0, bit_number2;
-int i=1;//Utility for fors or temp values
+//int i=1;//Utility for fors or temp values
 
 /*
  * Creates a new string with all leading and trailing spaces removed
@@ -180,49 +182,56 @@ int split_line(char *in_buffer, char *opcode_out, char *arg1_out, char *arg2_out
     return 0;
 }
 
+int is_conditional_flag(char *arg) {
+    if (strcmp(arg, "nz") == 0 || strcmp(arg, "z") == 0 || strcmp(arg, "nc") == 0 || strcmp(arg, "c") == 0) {
+        return 0;
+    }
+    return 1;
+}
+
 //This is the ultrapowerfull routine which will create a gb file from an asm file
 //Really a complex motor
-int assemble(FILE *in, FILE *out)
-{
-	int result, j;//Here we will get the resulting opcode(s)
-	int seek_temp;
-	char buffer[512];//Max number of caracters per line
-	char arg1[64];//First argument(it should not even get bigger than 16)
-	char arg2[64];//Second argumnet if there is
-	char final_arg[64];//This is the string that will be compared with the opcodes table
-	                   //To get the correct opcode  
-	char opcode[64];//This will have the opcode string(adc, ld, or, srl....)
-	char delimiters[]=" ,\n\t";//This are used with strtok to separate the arguments
-	char temp_arg[64];
-	char *point;//This is the pointers used with strtok which contains the result token
-	ROUTINE *temp=NULL, *r_tail;
-	JUMPS *j_temp=NULL, *j_tail;
-	INCLUDES *incs=NULL;
-	FILE *inc_file;
-	//temp=r_list;
-	//j_temp=j_list;
-	while(!feof(in))//While we havent reach the end of the file, continue assembling
-	{
-		/*Ok, first we must read the opcode, so we use te normal scanf, after that
-		we read with fgets to read until the comments end(if there so).
-		We separate the arguments, eliminate any unecesary spaces and
-		finally produce the new opcode*/
+int assemble(FILE *in, FILE *out) {
+    int line_counter = 0;
+    int result, j;//Here we will get the resulting opcode(s)
+    int seek_temp;
+    char buffer[512];//Max number of caracters per line
+    char arg1[64];//First argument(it should not even get bigger than 16)
+    char arg2[64];//Second argumnet if there is
+    char final_arg[64];//This is the string that will be compared with the opcodes table
+    //To get the correct opcode
+    char opcode[64];//This will have the opcode string(adc, ld, or, srl....)
+    char delimiters[] = " ,\n\t";//This are used with strtok to separate the arguments
+    char temp_arg[64];
+    char *point;//This is the pointers used with strtok which contains the result token
+    struct RoutineList routines_list;
+    struct JumpList jumps_list;
+    INCLUDES *incs = NULL;
+    FILE *inc_file;
+    //temp=r_list;
+    //j_temp=j_list;
+    while (!feof(in))//While we havent reach the end of the file, continue assembling
+    {
+        /*Ok, first we must read the opcode, so we use te normal scanf, after that
+        we read with fgets to read until the comments end(if there so).
+        We separate the arguments, eliminate any unecesary spaces and
+        finally produce the new opcode*/
 
-		/*Lets clear the buffers*/
-		memset(buffer, 0, sizeof(buffer));
-		memset(arg1, 0, sizeof(arg1));
-		memset(arg2, 0, sizeof(arg2));
-		memset(final_arg, 0, sizeof(final_arg));
-		memset(opcode, 0, sizeof(opcode));
-		n_activator=nn_activator=n=nn=0;//Put all to zero
-		n_activator2=nn_activator2=n2=nn2=0;
-		bit_indicator=bit_number=0;
-		bit_indicator2=bit_number2=0;
+        /*Lets clear the buffers*/
+        memset(buffer, 0, sizeof(buffer));
+        memset(arg1, 0, sizeof(arg1));
+        memset(arg2, 0, sizeof(arg2));
+        memset(final_arg, 0, sizeof(final_arg));
+        memset(opcode, 0, sizeof(opcode));
+        n_activator = nn_activator = n = nn = 0;//Put all to zero
+        n_activator2 = nn_activator2 = n2 = nn2 = 0;
+        bit_indicator = bit_number = 0;
+        bit_indicator2 = bit_number2 = 0;
 
         fgets(buffer, 511, in);//Get everything else
         char *clean_buffer = strtrim(buffer);
         if (strlen(clean_buffer) == 0 || clean_buffer[0] == ';') {
-            ++i;
+            ++line_counter;
             continue;
         }
         split_line(clean_buffer, opcode, arg1, arg2);
@@ -253,151 +262,93 @@ int assemble(FILE *in, FILE *out)
             fseek(out, seek_temp, SEEK_SET);
         } else if (strcmp(opcode, ".db") == 0) {//If we find a .db option then we write the byte as it is.
             fputc(atoh(arg1), out);
-        } else if (strchr(opcode, ':') != NULL)//If there is a : in the opcode, then its a routine
-        {
-            if (r_list == NULL) {
-                r_list = (ROUTINE *) malloc(sizeof(ROUTINE));//We allocate memory
-                strcpy(r_list->r_name, strtok(opcode, ":"));//The name is the routine name without ":"
-                r_list->r_address = ftell(out);//The address of this routines is where it was found technically
-                r_list->next = NULL;
-                r_tail = r_list;
-            } else {
-                r_tail->next = (ROUTINE *) malloc(sizeof(ROUTINE));
-                r_tail = r_tail->next;
-                strcpy(r_tail->r_name, strtok(opcode, ":"));//The name is the routine name without ":"
-                r_tail->r_address = ftell(out);//The address of this routines is where it was found technically
-                r_tail->next = NULL;
-            }
-        } else if (strcmp(opcode, "call") == 0)//If we have a call, then we have a routine name
-        {//We must take this routine name and keep so after normal assembler
-            //We will put the right address
-            if (strcmp(arg1, "nz") == 0 || strcmp(arg1, "z") == 0 || strcmp(arg1, "nc") == 0 ||
-                strcmp(arg1, "c") == 0) {//If in the first argument we have conditionals then we use the second argument
-                strcpy(temp_arg, arg2);
+        } else if (strchr(opcode, ':') != NULL) {
+            // If there is a : in the opcode, then its a routine
+            add_routine(&routines_list, strtok(opcode, ":"), ftell(out));
+        } else if (strcmp(opcode, "call") == 0) {
+            // If we have a call, then we have a routine name
+            // We must take this routine name and keep so after normal assembler
+            // We will put the right address
+            char routine_name[64];
+            if (is_conditional_flag(arg1)) {
+                //If in the first argument we have conditionals then we use the second argument
+                strcpy(routine_name, arg2);
                 strcpy(final_arg, arg1);
                 strcat(final_arg, ",dir");
             } else//If not, we use the first argument
             {
-                strcpy(temp_arg, arg1);
+                strcpy(routine_name, arg1);
                 strcpy(final_arg, "dir");
             }
             //Now temp_arg has the name of the routine, lets keep it in our dynamic array
+            add_jump(&jumps_list, routine_name, ftell(out) + 1, 0, 16);
 
-            if (j_list == NULL) {
-                j_list = (JUMPS *) malloc(sizeof(JUMPS));
-                strcpy(j_list->j_name, temp_arg);//The name is the routine
-                j_list->j_address = ftell(out) +
-                                    1;//The address where we found the call, then we add it one so we will have the addres where we must write
-                j_list->j_value = 0;//Lets use generic 0
-                j_list->bits = 16;
-                j_tail = j_list;
-            } else {
-                j_tail->next = (JUMPS *) malloc(sizeof(JUMPS));
-                j_tail = j_tail->next;
-                strcpy(j_tail->j_name, temp_arg);//The name is the routine
-                j_tail->j_address = ftell(out) +
-                                    1;//The address where we found the call, then we add it one so we will have the addres where we must write
-                j_tail->j_value = 0;//Lets use generic 0
-                j_tail->bits = 16;
-                j_tail->next = NULL;
-            }
-
-            result = op_compare(opcode, final_arg);//Get the correct opcode number
+            result = op_compare(opcode, final_arg); // Get the correct opcode number
             if (result == -1) {
-                printf("Error line %d, opcode: %s with arguments %s has an error or its an asembler bug\n", i, opcode,
+                printf("Error line %d, opcode: %s with arguments %s has an error or its an assembler bug\n",
+                       line_counter, opcode,
                        final_arg);
             }
             fputc(result, out);//Write the opcode
             fputc(0, out);//Fill with generic 0
             fputc(0, out);//Fill with generic 0
         } else if (strcmp(opcode, "jp") == 0 && strcmp(arg1, "(hl)") != 0 && strcmp(arg1, "[hl]") != 0) {
-            if (strcmp(arg1, "nz") == 0 || strcmp(arg1, "z") == 0 || strcmp(arg1, "nc") == 0 ||
-                strcmp(arg1, "c") == 0) {//If in the first argument we have conditionals then we use the second argument
-                strcpy(temp_arg, arg2);
+            char routine_name[64];
+            if (is_conditional_flag(arg1) == 0) {
+                //If in the first argument we have conditionals then we use the second argument
+                strcpy(routine_name, arg2);
                 strcpy(final_arg, arg1);
                 strcat(final_arg, ",dir");
-            } else//If not, we use the dirst argument
-            {
-                strcpy(temp_arg, arg1);
+            } else {
+                //If not, we use the dirst argument
+                strcpy(routine_name, arg1);
                 strcpy(final_arg, "dir");
             }
             //Now temp_arg has the name of the routine, lets keep it in our dinamic array
 
-            if (j_list == NULL) {
-                j_list = (JUMPS *) malloc(sizeof(JUMPS));
-                strcpy(j_list->j_name, temp_arg);//The name is the routine
-                j_list->j_address = ftell(out) +
-                                    1;//The address where we found the call, then we add it one so we will have the addres where we must write
-                j_list->j_value = 0;//Lets use generic 0
-                j_list->bits = 16;
-                j_tail = j_list;
-            } else {
-                j_tail->next = (JUMPS *) malloc(sizeof(JUMPS));
-                j_tail = j_tail->next;
-                strcpy(j_tail->j_name, temp_arg);//The name is the routine
-                j_tail->j_address = ftell(out) +
-                                    1;//The address where we found the call, then we add it one so we will have the addres where we must write
-                j_tail->j_value = 0;//Lets use generic 0
-                j_tail->bits = 16;
-                j_tail->next = NULL;
-            }
+            add_jump(&jumps_list, routine_name, ftell(out) + 1, 0, 16);
 
             result = op_compare(opcode, final_arg);//Get the correct opcode number
             if (result == -1) {
-                printf("Error line %d, opcode: %s with arguments %s has an error or its an asembler bug\n", i, opcode,
+                printf("Error line %d, opcode: %s with arguments %s has an error or its an assembler bug\n",
+                       line_counter, opcode,
                        final_arg);
             }
             fputc(result, out);//Write the opcode
             fputc(0, out);//Fill with generic 0
             fputc(0, out);//Fill with generic 0
         } else if (strcmp(opcode, "jr") == 0) {
-            if (strcmp(arg1, "nz") == 0 || strcmp(arg1, "z") == 0 || strcmp(arg1, "nc") == 0 ||
-                strcmp(arg1, "c") == 0) {//If in the first argument we have conditionals then we use the second argument
-                strcpy(temp_arg, arg2);
+            char routine_name[64];
+            if (is_conditional_flag(arg1) == 0) {
+                //If in the first argument we have conditionals then we use the second argument
+                strcpy(routine_name, arg2);
                 strcpy(final_arg, arg1);
                 strcat(final_arg, ",dir");
-            } else//If not, we use the dirst argument
-            {
-                strcpy(temp_arg, arg1);
+            } else {
+                //If not, we use the dirst argument
+                strcpy(routine_name, arg1);
                 strcpy(final_arg, "dir");
             }
             //Now temp_arg has the name of the routine, lets keep it in our dinamic array
-
-            if (j_list == NULL) {
-                j_list = (JUMPS *) malloc(sizeof(JUMPS));
-                strcpy(j_list->j_name, temp_arg);//The name is the routine
-                j_list->j_address = ftell(out) +
-                                    1;//The address where we found the call, then we add it one so we will have the addres where we must write
-                j_list->j_value = 0;//Lets use generic 0
-                j_list->bits = 8;
-                j_tail = j_list;
-            } else {
-                j_tail->next = (JUMPS *) malloc(sizeof(JUMPS));
-                j_tail = j_tail->next;
-                strcpy(j_tail->j_name, temp_arg);//The name is the routine
-                j_tail->j_address = ftell(out) +
-                                    1;//The address where we found the call, then we add it one so we will have the addres where we must write
-                j_tail->j_value = 0;//Lets use generic 0
-                j_tail->bits = 8;
-                j_tail->next = NULL;
-            }
+            add_jump(&jumps_list, routine_name, ftell(out) + 1, 0, 8);
 
             result = op_compare(opcode, final_arg);//Get the correct opcode number
             if (result == -1) {
-                printf("Error line %d, opcode: %s with arguments %s has an error or its an asembler bug\n", i, opcode,
+                printf("Error line %d, opcode: %s with arguments %s has an error or its an asembler bug\n",
+                       line_counter, opcode,
                        final_arg);
             }
             fputc(result, out);//Write the opcode
             fputc(0, out);//Fill with generic 0
         } else {
             /*Lets start analizing the first argument begin building the table opcode*/
-            process_all(opcode, arg1, arg2, final_arg);
+            process_all(opcode, arg1, arg2, final_arg, line_counter);
             //Finally, we have all the arguments ready to pass them to the opcode table.
             //Here it will be compared and it will return the opcode to write.
             result = op_compare(opcode, final_arg);
             if (result == -1)//If not found, generate an error message
             {
-                printf("error: line %d \n", i);
+                printf("error: line %d \n", line_counter);
                 printf("Opcode %s with arguments %s was no found\n", opcode, final_arg);
                 //return 1;
             }//Now lets write it based in some rules
@@ -441,41 +392,39 @@ int assemble(FILE *in, FILE *out)
         }
 
 
-        i++;//Increment line counter
+        //Increment line counter
+        line_counter++;
     }//Ends the assembly loop
-	//Now lets finish with the routines(calls) and jumps
-	//Fisrt we will go for each call/jp made and search it in the routines list
-	for(j_temp=j_list; j_temp!=NULL; j_temp=j_temp->next)
-	{//Lets get through each call and compare it with each member of the routines list 
-		for(temp=r_list; temp!=NULL; temp=temp->next)
-		{
-			if(strcmp(j_temp->j_name, temp->r_name)==0)//If we found the routine name
-			{
-				fseek(out, j_temp->j_address, SEEK_SET);
-				result=fgetc(out);
-				if(result!=0)//If we dont have the generic 0, then something bad happened
-				{
-					printf("Something bad happened the %d should be a 0\n", result);
-					printf("The opcode will be written, so be carefull\n");
-					printf("This may be because a programs bug, contact me to report this\n");
-				}
-				
-				fseek(out, -1, SEEK_CUR);
-				if(j_temp->bits==16)
-				{
-					fputc(temp->r_address&0xFF, out);
-					fputc((temp->r_address>>8)&0xFF, out);					
-				}
-				else					
-					fputc((temp->r_address-j_temp->j_address-1)&0xFF, out);
-			
-				break;
-				//Well, here i should eliminate the nod to help me with error messages but its not
-				//necesary, so ill leave it like this for now
-			}
-		}
-	}
-	return 0;//Everything resulted ok, no errors
+    //Now lets finish with the routines(calls) and jumps
+    //Fisrt we will go for each call/jp made and search it in the routines list
+    struct Jump *jump = pop_jump(jumps_list);
+    while (jump != NULL) {
+        struct Routine *routine = search_routine_by_name(routines_list, jump->name);
+        if (routine == NULL) {
+            printf("ERROR: There is a jump to an undefined routine %s\n", jump->name);
+        }
+        fseek(out, jump->address, SEEK_SET);
+        result = fgetc(out);
+        if (result != 0) {
+            //If we dont have the generic 0, then something bad happened
+            printf("Something bad happened the %d should be a 0\n", result);
+            printf("The opcode will be written, so be carefull\n");
+            printf("This may be because a programs bug, contact me to report this\n");
+        }
+
+        fseek(out, -1, SEEK_CUR);
+        if (jump->bits == 16) {
+            int high_address = (int) (routine->address >> 8) & 0xFF;
+            int low_address = (int) routine->address & 0xFF;
+            fputc(low_address, out);
+            fputc(high_address & 0xFF, out);
+        } else {
+            int address = (int) (routine->address - jump->address - 1) & 0xFF;
+            fputc(address, out);
+        }
+    }
+    //Everything resulted ok, no errors
+    return 0;
 }
 
 //This routine will process opcode and arguments and will produce a string 
@@ -486,7 +435,7 @@ It will not know what a routine is, or special instructions of the assembler
 Useu this only when opcode is a valid opcode, if it is something like "main:"
 or ".start" it will produce an error string.
 */
-int process_all(char *opcode, char *arg1, char *arg2, char *final_arg)
+int process_all(char *opcode, char *arg1, char *arg2, char *final_arg, int line_number)
 {
 	/*Lets go first with irreularities*/
 	//Check if there is argument
@@ -527,7 +476,7 @@ int process_all(char *opcode, char *arg1, char *arg2, char *final_arg)
 		//Now check if this bit is 0-7
 		if(bit_number>7)
 		{
-			printf("Error in line %d: there is no bit %d\n", i, bit_number);
+			printf("Error in line %d: there is no bit %d\n", line_number, bit_number);
 			return 1;
 		}
 	}
@@ -542,7 +491,7 @@ int process_all(char *opcode, char *arg1, char *arg2, char *final_arg)
 		{//We must be carefull not to write ld (0xFF00+n),x...
 			if(strlen(arg1)>9)
 			{
-				printf("Ops, error en la linea %d, el primer argumento no puede ser tan grande\nSaliendo...\n", i);
+				printf("Ops, error en la linea %d, el primer argumento no puede ser tan grande\nSaliendo...\n", line_number);
 				return 1;
 			}
 			if(arg1[2]=='x')//This is an optional letter to identify hexadecimal numbers
@@ -619,7 +568,7 @@ int process_all(char *opcode, char *arg1, char *arg2, char *final_arg)
 		//Now check if this bit is 0-7
 		if(bit_number2>7)
 		{
-			printf("Error in line %d: there is no bit %d\n", i, bit_number);
+			printf("Error in line %d: there is no bit %d\n", line_number, bit_number);
 			return 1;
 		}
 	}
@@ -634,7 +583,7 @@ int process_all(char *opcode, char *arg1, char *arg2, char *final_arg)
 		{//We must be carefull not to write ld (0xFF00+n),x...
 			if(strlen(arg2)>9)
 			{
-				printf("Ops, error en la linea %d, el primer argumento no puede ser tan grande\nSaliendo...\n", i);
+				printf("Ops, error en la linea %d, el primer argumento no puede ser tan grande\nSaliendo...\n", line_number);
 				return 1;
 			}
 			if(arg2[2]=='x')//This is an optional letter to identify hexadecimal numbers
