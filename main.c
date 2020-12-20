@@ -33,93 +33,70 @@
 #include "routine.h"
 #include "jumps.h"
 
+struct Operation {
+    char opcode_args[64];
+    int first_arg_value;
+    int second_arg_value;
+    int is_first_arg_word;
+    int is_second_arg_word;
+    int is_first_arg_bit;
+    int is_second_arg_bit;
+    int first_arg_bits;
+    int second_arg_bits;
+};
+
 /*globals*/
 FILE *asm_file, *gb_file;
 int assemble(FILE *in, FILE *out);
 int op_compare(char *opcode_name, char *arguments);
-int process_all(char *opcode, char *arg1, char *arg2, char *final_arg, int line_number);
+int process_all(struct Operation *operation, char *opcode, char *arg1, char *arg2, int line_number);
 int atoh(char *number);
-int main(int argc, char *argv[])
-{
-	char filename[128];
-	int i=0;
-	ROUTINE *temp, *temp2;
-	JUMPS *j_temp, *j_temp2;
-	unsigned char nintendo_logo[]={0xCE, 0xED, 0x66, 0x66, 0xCC, 0x0D, 0x00, 0x0B, 0x03, 0x73, 
-                      			0x00, 0x83, 0x00, 0x0C, 0x00, 0x0D, 0x00, 0x08, 0x11, 0x1F, 
-					0x88, 0x89, 0x00, 0x0E, 0xDC, 0xCC, 0x6E, 0xE6, 0xDD, 0xDD, 
-					0xD9, 0x99, 0xBB, 0xBB, 0x67, 0x63, 0x6E, 0x0E, 0xEC, 0xCC, 
-					0xDD, 0xDC, 0x99, 0x9F, 0xBB, 0xB9, 0x33, 0x3E};
-	printf("GB-z80 assembler v2 by dospro(dospro@gmail.com)\n");
-	printf("Web: http://boigb.sourceforge.net\n");
-	if(argc<2)
-	{
-		printf("gbz80_asm.exe <asm_file.asm>\n");
-		exit(0);
-	}
 
-	asm_file=fopen(argv[1], "r");
-	if(asm_file==NULL)
-	{
-		printf("Couldn't open %s\n", argv[1]);
-		exit(0);
-	}
-	strcpy(filename, argv[1]);
-	strcat(filename, ".gb");
-	gb_file=fopen(filename, "w+");
-	if(gb_file==NULL)
-	{
-		printf("Couldn't create gb file\n");
-		exit(0);
-	}
-	printf("Making header:\n");
-	for(i=0; i<1024*32; i++)
-		fputc(0, gb_file);//Fill the rom with 0
-	fseek(gb_file, 0x104, SEEK_SET);
-	fwrite(&nintendo_logo, 1, sizeof(nintendo_logo), gb_file);
-	fseek(gb_file, 0x100, SEEK_SET);
-	fputc(0xC3, gb_file);
-	fputc(0x50, gb_file);
-	fputc(0x01, gb_file);//Put the jump to the 150 address
-	fseek(gb_file, 0x150, SEEK_SET);
-	printf("Assembling...please wait\n");
-	assemble(asm_file, gb_file);
-	printf("Freeing memory\n");
-	
-	temp = r_list;
-	temp2 = NULL;
-	while(temp)
-	{
-		temp2 = temp->next;
-		free(temp);
-		temp = temp2;
-	}
+int main(int argc, char *argv[]) {
+    char filename[128];
+    unsigned char nintendo_logo[] = {0xCE, 0xED, 0x66, 0x66, 0xCC, 0x0D, 0x00, 0x0B, 0x03, 0x73,
+                                     0x00, 0x83, 0x00, 0x0C, 0x00, 0x0D, 0x00, 0x08, 0x11, 0x1F,
+                                     0x88, 0x89, 0x00, 0x0E, 0xDC, 0xCC, 0x6E, 0xE6, 0xDD, 0xDD,
+                                     0xD9, 0x99, 0xBB, 0xBB, 0x67, 0x63, 0x6E, 0x0E, 0xEC, 0xCC,
+                                     0xDD, 0xDC, 0x99, 0x9F, 0xBB, 0xB9, 0x33, 0x3E};
+    printf("GB-z80 assembler v2 by dospro(dospro@gmail.com)\n");
+    printf("Web: http://boigb.sourceforge.net\n");
+    if (argc < 2) {
+        printf("gbz80_asm.exe <asm_file.asm>\n");
+        exit(0);
+    }
 
-	j_temp = j_list;
-	j_temp2 = NULL;
-	while(temp)
-	{
-		j_temp2 = j_temp->next;
-		free(j_temp);
-		j_temp = j_temp2;
-	}
+    asm_file = fopen(argv[1], "r");
+    if (asm_file == NULL) {
+        printf("Couldn't open %s\n", argv[1]);
+        exit(0);
+    }
+    strcpy(filename, argv[1]);
+    strcat(filename, ".gb");
+    gb_file = fopen(filename, "w+");
+    if (gb_file == NULL) {
+        printf("Couldn't create gb file\n");
+        exit(0);
+    }
+    printf("Making header:\n");
+    for (int i = 0; i < 1024 * 32; i++)
+        fputc(0, gb_file);//Fill the rom with 0
+    fseek(gb_file, 0x104, SEEK_SET);
+    fwrite(&nintendo_logo, 1, sizeof(nintendo_logo), gb_file);
+    fseek(gb_file, 0x100, SEEK_SET);
+    fputc(0xC3, gb_file);
+    fputc(0x50, gb_file);
+    fputc(0x01, gb_file);//Put the jump to the 150 address
+    fseek(gb_file, 0x150, SEEK_SET);
+    printf("Assembling...please wait\n");
+    assemble(asm_file, gb_file);
+    printf("Freeing memory\n");
 
-			
-
-
-	fclose(asm_file);
-	fclose(gb_file);
-	printf("Finish...exiting\n");
-	return 0;
+    fclose(asm_file);
+    fclose(gb_file);
+    printf("Finish...exiting\n");
+    return 0;
 }
-
-/*Some globals we will need*/
-int n_activator=0, nn_activator=0, n, nn;//This are needed when there is more 
-//than one opcode per instruction
-int n_activator2=0, nn_activator2=0, n2, nn2;
-int bit_indicator=0, bit_number;//This is used to stor the bit number to set, check or test
-int bit_indicator2=0, bit_number2;
-//int i=1;//Utility for fors or temp values
 
 /*
  * Creates a new string with all leading and trailing spaces removed
@@ -189,11 +166,14 @@ int is_conditional_flag(char *arg) {
     return 1;
 }
 
-//This is the ultrapowerfull routine which will create a gb file from an asm file
-//Really a complex motor
+/*
+ * Goes line by line and translates the assembly code into binary representation
+ *
+ * It also handles routine names and special instructions
+ */
 int assemble(FILE *in, FILE *out) {
     int line_counter = 0;
-    int result, j;//Here we will get the resulting opcode(s)
+    int result;//Here we will get the resulting opcode(s)
     int seek_temp;
     char buffer[512];//Max number of caracters per line
     char arg1[64];//First argument(it should not even get bigger than 16)
@@ -201,15 +181,10 @@ int assemble(FILE *in, FILE *out) {
     char final_arg[64];//This is the string that will be compared with the opcodes table
     //To get the correct opcode
     char opcode[64];//This will have the opcode string(adc, ld, or, srl....)
-    char delimiters[] = " ,\n\t";//This are used with strtok to separate the arguments
-    char temp_arg[64];
-    char *point;//This is the pointers used with strtok which contains the result token
     struct RoutineList routines_list;
     struct JumpList jumps_list;
-    INCLUDES *incs = NULL;
     FILE *inc_file;
-    //temp=r_list;
-    //j_temp=j_list;
+
     while (!feof(in))//While we havent reach the end of the file, continue assembling
     {
         /*Ok, first we must read the opcode, so we use te normal scanf, after that
@@ -223,10 +198,6 @@ int assemble(FILE *in, FILE *out) {
         memset(arg2, 0, sizeof(arg2));
         memset(final_arg, 0, sizeof(final_arg));
         memset(opcode, 0, sizeof(opcode));
-        n_activator = nn_activator = n = nn = 0;//Put all to zero
-        n_activator2 = nn_activator2 = n2 = nn2 = 0;
-        bit_indicator = bit_number = 0;
-        bit_indicator2 = bit_number2 = 0;
 
         fgets(buffer, 511, in);//Get everything else
         char *clean_buffer = strtrim(buffer);
@@ -342,63 +313,61 @@ int assemble(FILE *in, FILE *out) {
             fputc(0, out);//Fill with generic 0
         } else {
             /*Lets start analizing the first argument begin building the table opcode*/
-            process_all(opcode, arg1, arg2, final_arg, line_counter);
+            struct Operation op;
+            process_all(&op, opcode, arg1, arg2, line_counter);
             //Finally, we have all the arguments ready to pass them to the opcode table.
             //Here it will be compared and it will return the opcode to write.
-            result = op_compare(opcode, final_arg);
-            if (result == -1)//If not found, generate an error message
-            {
+            result = op_compare(opcode, op.opcode_args);
+            if (result == -1) {
+                //If not found, generate an error message
                 printf("error: line %d \n", line_counter);
                 printf("Opcode %s with arguments %s was no found\n", opcode, final_arg);
                 //return 1;
-            }//Now lets write it based in some rules
-            else if ((result >> 8) == 0xCB)//If we have a CB opcode, then we must write the 2 values
-            {
-                if (bit_indicator == 1)//If we have a bit opcode then we introduce it inside the value
-                {
-                    j = result & 0xFF;
-                    j = j | (bit_number << 3);//Here we introduce the number of the bit
+            } else if ((result >> 8) == 0xCB) {
+                //Now lets write it based in some rules
+                //If we have a CB opcode, then we must write the 2 values
+                if (op.is_first_arg_bit == 1) {
+                    //If we have a bit opcode then we introduce it inside the value
+                    result = result & 0xFF;
+                    result = result | (op.first_arg_bits << 3);//Here we introduce the number of the bit
                     fputc(0xCB, out);//Write the CB and
-                    fputc(j, out);//then the ready opcode
+                    fputc(result, out);//then the ready opcode
                 } else {
                     fputc(0xCB, out);//Write the CB and
                     fputc(result & 0xFF, out);//then the ready opcode
                 }
-            } else if (result == 0x10)//Lets remember the stop which has 2 opcodes
-            {
-                fputc(0x10, out);//Write the CB and
-                fputc(0, out);//then the ready opcode
+            } else if (result == 0x10) {
+                // stop which has 2 opcodes
+                fputc(0x10, out);
+                fputc(0, out);
             } else {
-                if (n_activator == 1)//If there is an n value
-                {
+                if (op.is_first_arg_word == 0) {
+                    //If there is an n value
                     fputc(result, out);
-                    fputc(n, out);
-                } else if (nn_activator == 1)//If there is a 2 bytes value
-                {
+                    fputc(op.first_arg_value, out);
+                } else if (op.is_first_arg_word == 1) {
+                    //If there is a 2 bytes value
                     fputc(result, out);//write the opcode
-                    fputc((nn & 0xFF), out);//write the less significant byte
-                    fputc((nn >> 8) & 0xFF, out);//write the most significant byte
-                } else if (n_activator2 == 1)//If there is an n value
-                {
+                    fputc((op.first_arg_value & 0xFF), out);//write the less significant byte
+                    fputc((op.first_arg_value >> 8) & 0xFF, out);//write the most significant byte
+                } else if (op.is_second_arg_word == 0) {
+                    //If there is an n value
                     fputc(result, out);
-                    fputc(n2, out);
-                } else if (nn_activator2 == 1) {
-                    fputc(result, out);//write the opcode
-                    fputc((nn2 & 0xFF), out);//write the less significant byte
-                    fputc((nn2 >> 8) & 0xFF, out);//write the most significant byte
-                } else
+                    fputc(op.second_arg_value, out);
+                } else if (op.is_second_arg_word == 1) {
+                    fputc(result, out); // write the opcode
+                    fputc((op.second_arg_value & 0xFF), out); // write the less significant byte
+                    fputc((op.second_arg_value >> 8) & 0xFF, out); // write the most significant byte
+                } else {
                     fputc(result, out);
+                }
             }
         }
-
-
-        //Increment line counter
         line_counter++;
-    }//Ends the assembly loop
+    }
     //Now lets finish with the routines(calls) and jumps
     //Fisrt we will go for each call/jp made and search it in the routines list
-    struct Jump *jump = pop_jump(jumps_list);
-    while (jump != NULL) {
+    for (struct Jump *jump = pop_jump(jumps_list); jump != NULL; jump = pop_jump(jumps_list)) {
         struct Routine *routine = search_routine_by_name(routines_list, jump->name);
         if (routine == NULL) {
             printf("ERROR: There is a jump to an undefined routine %s\n", jump->name);
@@ -408,7 +377,7 @@ int assemble(FILE *in, FILE *out) {
         if (result != 0) {
             //If we dont have the generic 0, then something bad happened
             printf("Something bad happened the %d should be a 0\n", result);
-            printf("The opcode will be written, so be carefull\n");
+            printf("The opcode will be written, so be careful\n");
             printf("This may be because a programs bug, contact me to report this\n");
         }
 
@@ -422,209 +391,172 @@ int assemble(FILE *in, FILE *out) {
             int address = (int) (routine->address - jump->address - 1) & 0xFF;
             fputc(address, out);
         }
+
+        free(jump);
     }
+    free_routines(routines_list);
     //Everything resulted ok, no errors
     return 0;
 }
 
-//This routine will process opcode and arguments and will produce a string 
-//which is compatible with the opcode_table so it can be compared and am
-//opcode number returned.
-/*Note: This routine will only precess opcodes, arguments and comments.
-It will not know what a routine is, or special instructions of the assembler
-Useu this only when opcode is a valid opcode, if it is something like "main:"
-or ".start" it will produce an error string.
-*/
-int process_all(char *opcode, char *arg1, char *arg2, char *final_arg, int line_number)
+
+
+/*
+ * Routine that will take the opcode name and its arguments and produce
+ * a string for doing a look up in the opcodes table
+ */
+int process_all(struct Operation *operation, char *opcode, char *arg1, char *arg2, int line_number)
 {
-	/*Lets go first with irreularities*/
+	/*Lets go first with irregularities*/
 	//Check if there is argument
-	if(arg1[0]=='-')//If there is no argument
-		final_arg[0]='-';
-	//Numbers:
 
-	else if(arg1[0]=='0' || arg1[0]=='$')//If the first letter of the argument is 0 or $, then its a number
-	{
-		if(arg1[1]=='x')//This is an optional letter to identify hexadecimal numbers
-		{
-			n=atoh(arg1+2);//Then put the number into the n variable
-		}
-		else
-		{
-			n=atoh(arg1+1);
-		}
-		if(n>0xFF)//If its more than 1 byte
-		{
-			nn_activator=1;//Tell the assembler to write this number after the opcode
-			nn=n;//Keep the number in the correct variable
-			n=0;
-			strcpy(final_arg, "**");
-		}
-		else
-		{
-			n_activator=1;
-			strcpy(final_arg, "*");
-		}
-	}
-	//Bits number(0-7)
-	else if(arg1[0]=='0' || arg1[0]=='1' || arg1[0]=='2' || arg1[0]=='3' ||
-		arg1[0]=='4' || arg1[0]=='5' || arg1[0]=='6' || arg1[0]=='7' )
-	{
-		bit_number=atoi(arg1);//Keep the bit number
-		bit_indicator=1;//Trun on the bit indicator
-		strcpy(final_arg, "n");
-		//Now check if this bit is 0-7
-		if(bit_number>7)
-		{
-			printf("Error in line %d: there is no bit %d\n", line_number, bit_number);
-			return 1;
-		}
-	}
+    //If there is no argument
+    if (arg1[0] == '-') {
+        strcpy(operation->opcode_args, "-");
+    } else if (arg1[0] == '0' || arg1[0] == '$') {
+        //If the first letter of the argument is 0 or $, then its a hex number
+        // This is an optional letter to identify hexadecimal numbers
+        if (arg1[1] == 'x') {
+            operation->first_arg_value = atoh(&arg1[2]);
+        } else {
+            operation->first_arg_value = atoh(&arg1[1]);
+        }
+        //If its more than 1 byte
+        if (operation->first_arg_value > 0xFF) {
+            operation->is_first_arg_word = 1;
+            strcpy(operation->opcode_args, "**");
+        } else {
+            operation->is_first_arg_word = 0;
+            strcpy(operation->opcode_args, "*");
+        }
+    } else if (arg1[0] == '0' || arg1[0] == '1' || arg1[0] == '2' || arg1[0] == '3' || arg1[0] == '4' ||
+               arg1[0] == '5' || arg1[0] == '6' || arg1[0] == '7') {
+        //Bits number(0-7)
+        operation->first_arg_bits = atoi(arg1);
+        operation->is_first_arg_bit = 1;
+        strcpy(operation->opcode_args, "n");
 
-	//Parentesis:
+        //Now check if this bit is 0-7
+        if (operation->first_arg_bits > 7) {
+            printf("Error in line %d: there is no bit %d\n", line_number, operation->first_arg_bits);
+            return -1;
+        }
+    } else if (arg1[0] == '(' || arg1[0] == '[') {
+        /* If we have a parenthesis or a bracket
+        then we must know whats inside */
 
-	else if(arg1[0]=='(' || arg1[0]=='[')//Ok, if we have a parenthesis or the "corchet" 
-	{	                            //then we must know whats inside
-
-		//Ok, if we have an number, we do the same as before except for the  final_arg
-		if(arg1[1]=='0' || arg1[1]=='$')//If the first letter of the argument is 0 or $, then its a number
-		{//We must be carefull not to write ld (0xFF00+n),x...
-			if(strlen(arg1)>9)
-			{
-				printf("Ops, error en la linea %d, el primer argumento no puede ser tan grande\nSaliendo...\n", line_number);
-				return 1;
-			}
-			if(arg1[2]=='x')//This is an optional letter to identify hexadecimal numbers
-			{
-				n=atoh(arg1+3);//Then put the number into the n variable
-			}
-			else
-			{
-				n=atoh(arg1+2);
-			}
-			if(n>0xFF)//If its more than 1 byte
-			{
-				nn_activator=1;//Tell the assembler to write this number after the opcode
-				nn=n;//Keep the number in the correct variable
-				n=0;
-				strcpy(final_arg, "(**)");
-			}
-			else
-			{
-				n_activator=1;
-				strcpy(final_arg, "(*)");
-			}
-		}
-		else if(arg1[1]=='f' && arg1[2]=='f' && arg1[3]==0 && arg1[4]==0//If there is no simbol, then it is ff00+number
-			&& arg1[5]=='+' && arg1[6]!='c')
-		{
-			n=atoh(arg1+6);
-			n_activator=1;
-			strcpy(final_arg, "(ff00+*)");
-		}
-		else
-			strcpy(final_arg, arg1);
-	}//finish parentesis
-	//Here we are ready with irregularities, lets just compare and autocomplete
-	else		
-		strcpy(final_arg, arg1);
+        //Ok, if we have an number, we do the same as before except for the  final_arg
+        if (arg1[1] == '0' || arg1[1] == '$') {
+            //If the first letter of the argument is 0 or $, then its a number
+            //We must be careful not to write ld (0xFF00+n),x...
+            if (strlen(arg1) > 9) {
+                printf("Error in line %d, unknown argument %s\n", line_number, arg1);
+                return -1;
+            }
+            if (arg1[2] == 'x') {
+                //This is an optional letter to identify hexadecimal numbers
+                operation->first_arg_value = atoh(arg1 + 3);
+            } else {
+                operation->first_arg_value = atoh(arg1 + 2);
+            }
+            if (operation->first_arg_value > 0xFF) {
+                //If its more than 1 byte
+                operation->is_first_arg_word = 1;
+                strcpy(operation->opcode_args, "(**)");
+            } else {
+                operation->is_first_arg_word = 0;
+                strcpy(operation->opcode_args, "(*)");
+            }
+        } else if (arg1[1] == 'f' && arg1[2] == 'f' && arg1[3] == 0 && arg1[4] == 0 && arg1[5] == '+' &&
+                   arg1[6] != 'c') {
+            //If there is no symbol, then it is ff00+number
+            operation->first_arg_value = atoh(arg1 + 6);
+            operation->is_first_arg_word = 0;
+            strcpy(operation->opcode_args, "(ff00+*)");
+        } else {
+            strcpy(operation->opcode_args, arg1);
+        }
+    } else {
+        //Here we are ready with irregularities, lets just compare and autocomplete
+        strcpy(operation->opcode_args, arg1);
+    }
 	//With this we finish with the first argument
-	//Lets go with the second argument ehich is the same process.
+	//Lets go with the second argument which is the same process.
 	/**********************************************************/
 	//Check if there is argument
-	//If there is no argument we do nothing		
+	//If there is no argument we do nothing
 	//Numbers:
 
-	if(arg2[0]=='0' || arg2[0]=='$')//If the first letter of the argument is 0 or $, then its a number
-	{
-		if(arg2[1]=='x')//This is an optional letter to identify hexadecimal numbers
-		{
-			n2=atoh(arg2+2);//Then put the number into the n variable
-		}
-		else
-		{
-			n2=atoh(arg2+1);
-		}
-		if(n>0xFF)//If its more than 1 byte
-		{
-			nn_activator2=1;//Tell the assembler to write this number after the opcode
-			nn2=n2;//Keep the number in the correct variable				
-			n2=0;
-			strcat(final_arg, ",**");
-		}
-		else
-		{
-			n_activator2=1;
-			strcat(final_arg, ",*");
-		}
-	}
-	//Bits number(0-7)
-	else if(arg2[0]=='0' || arg2[0]=='1' || arg2[0]=='2' || arg2[0]=='3' ||
-		arg2[0]=='4' || arg2[0]=='5' || arg2[0]=='6' || arg2[0]=='7' )
-	{
-		bit_number2=atoi(arg2);//Keep the bit number
-		bit_indicator2=1;//Trun on the bit indicator
-		strcat(final_arg, ",n");
-		//Now check if this bit is 0-7
-		if(bit_number2>7)
-		{
-			printf("Error in line %d: there is no bit %d\n", line_number, bit_number);
-			return 1;
-		}
-	}
+    if (arg2[0] == '0' || arg2[0] == '$') {
+        //If the first letter of the argument is 0 or $, then its a number
+        if (arg2[1] == 'x') {
+            //This is an optional letter to identify hexadecimal numbers
+            operation->second_arg_value = atoh(arg2 + 2);
+        } else {
+            operation->second_arg_value = atoh(arg2 + 1);
 
-	//Parentesis:
+        }
+        if (operation->second_arg_value > 0xFF) {
+            //If its more than 1 byte
+            operation->is_second_arg_word = 1;
+            strcat(operation->opcode_args, ",**");
+        } else {
+            operation->is_second_arg_word = 0;
+            strcat(operation->opcode_args, ",*");
+        }
+    } else if (arg2[0] == '0' || arg2[0] == '1' || arg2[0] == '2' || arg2[0] == '3' || arg2[0] == '4' ||
+               arg2[0] == '5' || arg2[0] == '6' || arg2[0] == '7') {
+        //Bits number(0-7)
+        operation->second_arg_bits = atoi(arg2);
+        operation->is_second_arg_bit = 1;
+        strcat(operation->opcode_args, ",n");
+        //Now check if this bit is 0-7
+        if (operation->second_arg_bits > 7) {
+            printf("Error in line %d: there is no bit %d\n", line_number, operation->second_arg_bits);
+            return 1;
+        }
+    } else if (arg2[0] == '(' || arg2[0] == '[') {
+        // Parenthesis:
+        // Ok, if we have a parenthesis or a square bracket
+        // then we must know whats inside
 
-	else if(arg2[0]=='(' || arg2[0]=='[')//Ok, if we have a parenthesis or the "corchet" 
-	{	                            //then we must know whats inside
-
-		//Ok, if we have an number, we do the same as before except for the  final_arg
-		if(arg2[1]=='0' || arg2[1]=='$')//If the first letter of the argument is 0 or $, then its a number
-		{//We must be carefull not to write ld (0xFF00+n),x...
-			if(strlen(arg2)>9)
-			{
-				printf("Ops, error en la linea %d, el primer argumento no puede ser tan grande\nSaliendo...\n", line_number);
-				return 1;
-			}
-			if(arg2[2]=='x')//This is an optional letter to identify hexadecimal numbers
-			{
-				n2=atoh(arg2+3);//Then put the number into the n variable
-			}
-			else
-			{
-				n2=atoh(arg2+2);
-			}
-			if(n>0xFF)//If its more than 1 byte
-			{
-				nn_activator2=1;//Tell the assembler to write this number after the opcode
-				nn2=n2;//Keep the number in the correct variable
-				n2=0;
-				strcat(final_arg, ",(**)");
-			}
-			else
-			{
-				n_activator2=1;
-				strcat(final_arg, ",(*)");
-			}
-		}
-		else if(arg2[1]=='f' && arg2[2]=='f' && arg2[3]==0 && arg2[4]==0//If there is no simbol, then it is ff00+number
-			&& arg2[5]=='+' && arg2[6]!='c')
-		{
-			n2=atoh(arg2+6);
-			n_activator2=1;
-			strcat(final_arg, ",(ff00+*)");
-		}
-	}//finish parentesis
-	//Here we are ready with irregularities, lets just compare and autocomplete
-	else 
-	{
-		if(arg2[0]!=0)
-		{
-			strcat(final_arg, ",");//We put the comma 
-			strcat(final_arg, arg2);//then the second argument
-		}
-	}
-	return 0;
+        //Ok, if we have an number, we do the same as before except for the  final_arg
+        if (arg2[1] == '0' || arg2[1] == '$') {
+            //If the first letter of the argument is 0 or $, then its a number
+            //We must be careful not to write ld (0xFF00+n),x...
+            if (strlen(arg2) > 9) {
+                printf("Error in line %d, unknown argument %s\n", line_number, arg1);
+                return -1;
+            }
+            if (arg2[2] == 'x') {
+                //This is an optional letter to identify hexadecimal numbers
+                operation->second_arg_value = atoh(arg2 + 3);
+            } else {
+                operation->second_arg_value = atoh(arg2 + 2);
+            }
+            if (operation->second_arg_value > 0xFF) {
+                //If its more than 1 byte
+                operation->is_second_arg_word = 1;
+                strcpy(operation->opcode_args, ",(**)");
+            } else {
+                operation->is_second_arg_word = 0;
+                strcpy(operation->opcode_args, ",(*)");
+            }
+        } else if (arg2[1] == 'f' && arg2[2] == 'f' && arg2[3] == 0 && arg2[4] == 0 && arg2[5] == '+' &&
+                   arg2[6] != 'c') {
+            //If there is no symbol, then it is ff00+number
+            operation->second_arg_value = atoh(arg1 + 6);
+            operation->is_second_arg_word = 0;
+            strcpy(operation->opcode_args, ",(ff00+*)");
+        }
+    } else {
+        //Here we are ready with irregularities, lets just compare and autocomplete
+        if (arg2[0] != 0) {
+            strcat(operation->opcode_args, ",");
+            strcat(operation->opcode_args, arg2);
+        }
+    }
+    return 0;
 }
 
 int op_compare(char *opcode_name, char *arguments)
@@ -656,7 +588,7 @@ int atoh(char *number)
 	t=number[2];
 	fo=number[3];
 
-	if(f=='0')	
+	if(f=='0')
 		fn=0;
 	else if(f=='1')
 		fn=1;
@@ -691,7 +623,7 @@ int atoh(char *number)
 	else
 		fn=0;
 
-	if(s=='0')	
+	if(s=='0')
 		sn=0;
 	else if(s=='1')
 		sn=1;
@@ -726,7 +658,7 @@ int atoh(char *number)
 	else
 		sn=0;
 
-	if(t=='0')	
+	if(t=='0')
 		tn=0;
 	else if(t=='1')
 		tn=1;
@@ -766,7 +698,7 @@ int atoh(char *number)
 		flag=1;
 	}
 
-	if(fo=='0')	
+	if(fo=='0')
 		fon=0;
 	else if(fo=='1')
 		fon=1;

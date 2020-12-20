@@ -25,35 +25,14 @@
  *
  */
 
-typedef struct _opcode{
+struct Opcode{
 	char op_name[6];
 	char op_args[12];
 	int op_val, op_val2;
-}opcode;
-
-typedef struct _INCLUDES{
-	char file[16];
-	int id;
-}INCLUDES;
-
-typedef struct _ROUTINES{
-	char r_name[64];//Routine name(ej. sub_process:
-	int r_address;//where the routine will be written
-	int r_c_address;//where the routine is called(to use jr instead
-	int r_end_address;//This will contain the addres where the ret is found
-	struct _ROUTINES *next;
-}ROUTINE;
-
-typedef struct CALL_JP{
-	char j_name[64];//The name of this call
-	int j_address;//Where is the call
-	int j_value;//This will have a 0 as generic before getting the right value
-	int bits;//8 if its a byte, 16 if its a word(2 bytes addres)
-	struct CALL_JP *next;//Next node
-}JUMPS;
+};
 
 
-opcode opcode_table[]={
+struct Opcode opcode_table[]={
 	{"adc", "a,a", 0x8F, 0},/*Add with carry*/
 	{"adc", "a,b", 0x88, 0},
 	{"adc", "a,c", 0x89, 0},
@@ -532,7 +511,3 @@ opcode opcode_table[]={
 	{"ld", "hl,sp+*", 0xF8},
 	{"ldhl", "sp,*", 0xF8},
 };
-
-
-ROUTINE *r_list=NULL;
-JUMPS *j_list=NULL;

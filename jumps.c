@@ -31,26 +31,24 @@ int add_jump(struct JumpList *list, char *name, long address, int value, int bit
     return 0;
 }
 
+/*
+ * Removes the top element of the list and returns it.
+ *
+ * You must manually free the allocated memory.
+ */
 struct Jump *pop_jump(struct JumpList list) {
     struct Jump *pointer;
 
     pointer = list.root;
-
-    if (pointer == NULL) {
-        return NULL;
-    }
-    while (pointer->next != NULL) {
-        pointer = pointer->next;
-    }
-
+    list.root = pointer->next;
     return pointer;
 }
 
 struct Jump *search_by_name(struct JumpList list, char *name) {
     struct Jump *pointer = list.root;
 
-    while(pointer != NULL) {
-        if(strcmp(pointer->name, name) == 0) {
+    while (pointer != NULL) {
+        if (strcmp(pointer->name, name) == 0) {
             return pointer;
         }
         pointer = pointer->next;
