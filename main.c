@@ -49,7 +49,7 @@ struct Operation {
 FILE *asm_file, *gb_file;
 int assemble(FILE *in, FILE *out);
 int op_compare(char *opcode_name, char *arguments);
-int process_all(struct Operation *operation, char *opcode, char *arg1, char *arg2, int line_number);
+int process_all(struct Operation *operation, char *arg1, char *arg2, int line_number);
 int atoh(char *number);
 
 int main(int argc, char *argv[]) {
@@ -109,7 +109,7 @@ char *strtrim(char *in_str) {
         ++start_index;
     }
     if (start_index == len) {
-        char *out = (char *)malloc(sizeof(char));
+        char *out = (char *) malloc(sizeof(char));
         out[0] = 0;
         return out;
     }
@@ -173,14 +173,12 @@ int is_conditional_flag(char *arg) {
  */
 int assemble(FILE *in, FILE *out) {
     int line_counter = 0;
-    int result;//Here we will get the resulting opcode(s)
-    int seek_temp;
     char buffer[512];//Max number of caracters per line
+    char opcode[64];//This will have the opcode string(adc, ld, or, srl....)
     char arg1[64];//First argument(it should not even get bigger than 16)
     char arg2[64];//Second argumnet if there is
     char final_arg[64];//This is the string that will be compared with the opcodes table
     //To get the correct opcode
-    char opcode[64];//This will have the opcode string(adc, ld, or, srl....)
     struct RoutineList routines_list;
     struct JumpList jumps_list;
     FILE *inc_file;
@@ -225,11 +223,11 @@ int assemble(FILE *in, FILE *out) {
             }
         } else if (strcmp(opcode, ".main") == 0) {
             //If we find the option .main then the program starts there not in 0x150
-            seek_temp = ftell(out);//Get the current position of the file
+            long seek_temp = ftell(out);//Get the current position of the file
             fseek(out, 0x100, SEEK_SET);//get to the program start
             fputc(0xC3, out);//Wrtie the new jump
-            fputc(seek_temp & 0xFF, out);
-            fputc((seek_temp >> 8) & 0xFF, out);
+            fputc((int) seek_temp & 0xFF, out);
+            fputc((int) (seek_temp >> 8) & 0xFF, out);
             fseek(out, seek_temp, SEEK_SET);
         } else if (strcmp(opcode, ".db") == 0) {//If we find a .db option then we write the byte as it is.
             fputc(atoh(arg1), out);
@@ -254,7 +252,7 @@ int assemble(FILE *in, FILE *out) {
             //Now temp_arg has the name of the routine, lets keep it in our dynamic array
             add_jump(&jumps_list, routine_name, ftell(out) + 1, 0, 16);
 
-            result = op_compare(opcode, final_arg); // Get the correct opcode number
+            int result = op_compare(opcode, final_arg); // Get the correct opcode number
             if (result == -1) {
                 printf("Error line %d, opcode: %s with arguments %s has an error or its an assembler bug\n",
                        line_counter, opcode,
@@ -279,7 +277,7 @@ int assemble(FILE *in, FILE *out) {
 
             add_jump(&jumps_list, routine_name, ftell(out) + 1, 0, 16);
 
-            result = op_compare(opcode, final_arg);//Get the correct opcode number
+            int result = op_compare(opcode, final_arg);//Get the correct opcode number
             if (result == -1) {
                 printf("Error line %d, opcode: %s with arguments %s has an error or its an assembler bug\n",
                        line_counter, opcode,
@@ -303,7 +301,7 @@ int assemble(FILE *in, FILE *out) {
             //Now temp_arg has the name of the routine, lets keep it in our dinamic array
             add_jump(&jumps_list, routine_name, ftell(out) + 1, 0, 8);
 
-            result = op_compare(opcode, final_arg);//Get the correct opcode number
+            int result = op_compare(opcode, final_arg);//Get the correct opcode number
             if (result == -1) {
                 printf("Error line %d, opcode: %s with arguments %s has an error or its an asembler bug\n",
                        line_counter, opcode,
@@ -314,10 +312,10 @@ int assemble(FILE *in, FILE *out) {
         } else {
             /*Lets start analizing the first argument begin building the table opcode*/
             struct Operation op;
-            process_all(&op, opcode, arg1, arg2, line_counter);
+            process_all(&op, arg1, arg2, line_counter);
             //Finally, we have all the arguments ready to pass them to the opcode table.
             //Here it will be compared and it will return the opcode to write.
-            result = op_compare(opcode, op.opcode_args);
+            int result = op_compare(opcode, op.opcode_args);
             if (result == -1) {
                 //If not found, generate an error message
                 printf("error: line %d \n", line_counter);
@@ -373,7 +371,7 @@ int assemble(FILE *in, FILE *out) {
             printf("ERROR: There is a jump to an undefined routine %s\n", jump->name);
         }
         fseek(out, jump->address, SEEK_SET);
-        result = fgetc(out);
+        int result = fgetc(out);
         if (result != 0) {
             //If we dont have the generic 0, then something bad happened
             printf("Something bad happened the %d should be a 0\n", result);
@@ -400,15 +398,13 @@ int assemble(FILE *in, FILE *out) {
 }
 
 
-
 /*
  * Routine that will take the opcode name and its arguments and produce
  * a string for doing a look up in the opcodes table
  */
-int process_all(struct Operation *operation, char *opcode, char *arg1, char *arg2, int line_number)
-{
-	/*Lets go first with irregularities*/
-	//Check if there is argument
+int process_all(struct Operation *operation, char *arg1, char *arg2, int line_number) {
+    /*Lets go first with irregularities*/
+    //Check if there is argument
 
     //If there is no argument
     if (arg1[0] == '-') {
@@ -480,12 +476,12 @@ int process_all(struct Operation *operation, char *opcode, char *arg1, char *arg
         //Here we are ready with irregularities, lets just compare and autocomplete
         strcpy(operation->opcode_args, arg1);
     }
-	//With this we finish with the first argument
-	//Lets go with the second argument which is the same process.
-	/**********************************************************/
-	//Check if there is argument
-	//If there is no argument we do nothing
-	//Numbers:
+    //With this we finish with the first argument
+    //Lets go with the second argument which is the same process.
+    /**********************************************************/
+    //Check if there is argument
+    //If there is no argument we do nothing
+    //Numbers:
 
     if (arg2[0] == '0' || arg2[0] == '$') {
         //If the first letter of the argument is 0 or $, then its a number
@@ -559,183 +555,179 @@ int process_all(struct Operation *operation, char *opcode, char *arg1, char *arg
     return 0;
 }
 
-int op_compare(char *opcode_name, char *arguments)
-{
-	//This will compare the opcode and the arguments
-	//with the table and return its opcode.
-	int i;
-	for(i=0; i<512; i++)//Go through all the table
-	{
-		if(strcmp(opcode_table[i].op_name, opcode_name)==0)
-			if(strcmp(opcode_table[i].op_args, arguments)==0)
-			{
-				if(opcode_table[i].op_val==0xCB)
-					return (opcode_table[i].op_val<<8)|(opcode_table[i].op_val2);
-				else
-					return opcode_table[i].op_val;
-			}
-	}
-	return -1;
+int op_compare(char *opcode_name, char *arguments) {
+    //This will compare the opcode and the arguments
+    //with the table and return its opcode.
+    int i;
+    for (i = 0; i < 512; i++)//Go through all the table
+    {
+        if (strcmp(opcode_table[i].op_name, opcode_name) == 0)
+            if (strcmp(opcode_table[i].op_args, arguments) == 0) {
+                if (opcode_table[i].op_val == 0xCB)
+                    return (opcode_table[i].op_val << 8) | (opcode_table[i].op_val2);
+                else
+                    return opcode_table[i].op_val;
+            }
+    }
+    return -1;
 }
 
-int atoh(char *number)
-{
-	char f, s, t, fo;
-	int result;
-	int fn, sn, tn, fon, flag=0;
-	f=number[0];
-	s=number[1];
-	t=number[2];
-	fo=number[3];
+int atoh(char *number) {
+    char f, s, t, fo;
+    int result;
+    int fn, sn, tn, fon, flag = 0;
+    f = number[0];
+    s = number[1];
+    t = number[2];
+    fo = number[3];
 
-	if(f=='0')
-		fn=0;
-	else if(f=='1')
-		fn=1;
-	else if(f=='2')
-		fn=2;
-	else if(f=='3')
-		fn=3;
-	else if(f=='4')
-		fn=4;
-	else if(f=='5')
-		fn=5;
-	else if(f=='6')
-		fn=6;
-	else if(f=='7')
-		fn=7;
-	else if(f=='8')
-		fn=8;
-	else if(f=='9')
-		fn=9;
-	else if(f=='a' || f=='A')
-		fn=0xa;
-	else if(f=='b' || f=='B')
-		fn=0xb;
-	else if(f=='c' || f=='C')
-		fn=0xc;
-	else if(f=='d' || f=='D')
-		fn=0xd;
-	else if(f=='e' || f=='E')
-		fn=0xe;
-	else if(f=='f' || f=='F')
-		fn=0xf;
-	else
-		fn=0;
+    if (f == '0')
+        fn = 0;
+    else if (f == '1')
+        fn = 1;
+    else if (f == '2')
+        fn = 2;
+    else if (f == '3')
+        fn = 3;
+    else if (f == '4')
+        fn = 4;
+    else if (f == '5')
+        fn = 5;
+    else if (f == '6')
+        fn = 6;
+    else if (f == '7')
+        fn = 7;
+    else if (f == '8')
+        fn = 8;
+    else if (f == '9')
+        fn = 9;
+    else if (f == 'a' || f == 'A')
+        fn = 0xa;
+    else if (f == 'b' || f == 'B')
+        fn = 0xb;
+    else if (f == 'c' || f == 'C')
+        fn = 0xc;
+    else if (f == 'd' || f == 'D')
+        fn = 0xd;
+    else if (f == 'e' || f == 'E')
+        fn = 0xe;
+    else if (f == 'f' || f == 'F')
+        fn = 0xf;
+    else
+        fn = 0;
 
-	if(s=='0')
-		sn=0;
-	else if(s=='1')
-		sn=1;
-	else if(s=='2')
-		sn=2;
-	else if(s=='3')
-		sn=3;
-	else if(s=='4')
-		sn=4;
-	else if(s=='5')
-		sn=5;
-	else if(s=='6')
-		sn=6;
-	else if(s=='7')
-		sn=7;
-	else if(s=='8')
-		sn=8;
-	else if(s=='9')
-		sn=9;
-	else if(s=='a' || s=='A')
-		sn=0xa;
-	else if(s=='b' || s=='B')
-		sn=0xb;
-	else if(s=='c' || s=='C')
-		sn=0xc;
-	else if(s=='d' || s=='D')
-		sn=0xd;
-	else if(s=='e' || s=='E')
-		sn=0xe;
-	else if(s=='f' || s=='F')
-		sn=0xf;
-	else
-		sn=0;
+    if (s == '0')
+        sn = 0;
+    else if (s == '1')
+        sn = 1;
+    else if (s == '2')
+        sn = 2;
+    else if (s == '3')
+        sn = 3;
+    else if (s == '4')
+        sn = 4;
+    else if (s == '5')
+        sn = 5;
+    else if (s == '6')
+        sn = 6;
+    else if (s == '7')
+        sn = 7;
+    else if (s == '8')
+        sn = 8;
+    else if (s == '9')
+        sn = 9;
+    else if (s == 'a' || s == 'A')
+        sn = 0xa;
+    else if (s == 'b' || s == 'B')
+        sn = 0xb;
+    else if (s == 'c' || s == 'C')
+        sn = 0xc;
+    else if (s == 'd' || s == 'D')
+        sn = 0xd;
+    else if (s == 'e' || s == 'E')
+        sn = 0xe;
+    else if (s == 'f' || s == 'F')
+        sn = 0xf;
+    else
+        sn = 0;
 
-	if(t=='0')
-		tn=0;
-	else if(t=='1')
-		tn=1;
-	else if(t=='2')
-		tn=2;
-	else if(t=='3')
-		tn=3;
-	else if(t=='4')
-		tn=4;
-	else if(t=='5')
-		tn=5;
-	else if(t=='6')
-		tn=6;
-	else if(t=='7')
-		tn=7;
-	else if(t=='8')
-		tn=8;
-	else if(t=='9')
-		tn=9;
-	else if(t=='a' || t=='A')
-		tn=0xa;
-	else if(t=='b' || t=='B')
-		tn=0xb;
-	else if(t=='c' || t=='C')
-		tn=0xc;
-	else if(t=='d' || t=='D')
-		tn=0xd;
-	else if(t=='e' || t=='E')
-		tn=0xe;
-	else if(t=='f' || t=='F')
-		tn=0xf;
-	else if(t==')' || t==0 || t==']')
-		tn=0;
-	else
-	{
-		tn=0;
-		flag=1;
-	}
+    if (t == '0')
+        tn = 0;
+    else if (t == '1')
+        tn = 1;
+    else if (t == '2')
+        tn = 2;
+    else if (t == '3')
+        tn = 3;
+    else if (t == '4')
+        tn = 4;
+    else if (t == '5')
+        tn = 5;
+    else if (t == '6')
+        tn = 6;
+    else if (t == '7')
+        tn = 7;
+    else if (t == '8')
+        tn = 8;
+    else if (t == '9')
+        tn = 9;
+    else if (t == 'a' || t == 'A')
+        tn = 0xa;
+    else if (t == 'b' || t == 'B')
+        tn = 0xb;
+    else if (t == 'c' || t == 'C')
+        tn = 0xc;
+    else if (t == 'd' || t == 'D')
+        tn = 0xd;
+    else if (t == 'e' || t == 'E')
+        tn = 0xe;
+    else if (t == 'f' || t == 'F')
+        tn = 0xf;
+    else if (t == ')' || t == 0 || t == ']')
+        tn = 0;
+    else {
+        tn = 0;
+        flag = 1;
+    }
 
-	if(fo=='0')
-		fon=0;
-	else if(fo=='1')
-		fon=1;
-	else if(fo=='2')
-		fon=2;
-	else if(fo=='3')
-		fon=3;
-	else if(fo=='4')
-		fon=4;
-	else if(fo=='5')
-		fon=5;
-	else if(fo=='6')
-		fon=6;
-	else if(fo=='7')
-		fon=7;
-	else if(fo=='8')
-		fon=8;
-	else if(fo=='9')
-		fon=9;
-	else if(fo=='a' || fo=='A')
-		fon=0xa;
-	else if(fo=='b' || fo=='B')
-		fon=0xb;
-	else if(fo=='c' || fo=='C')
-		fon=0xc;
-	else if(fo=='d' || fo=='D')
-		fon=0xd;
-	else if(fo=='e' || fo=='E')
-		fon=0xe;
-	else if(fo=='f' || fo=='F')
-		fon=0xf;
-	else
-		fon=0;
+    if (fo == '0')
+        fon = 0;
+    else if (fo == '1')
+        fon = 1;
+    else if (fo == '2')
+        fon = 2;
+    else if (fo == '3')
+        fon = 3;
+    else if (fo == '4')
+        fon = 4;
+    else if (fo == '5')
+        fon = 5;
+    else if (fo == '6')
+        fon = 6;
+    else if (fo == '7')
+        fon = 7;
+    else if (fo == '8')
+        fon = 8;
+    else if (fo == '9')
+        fon = 9;
+    else if (fo == 'a' || fo == 'A')
+        fon = 0xa;
+    else if (fo == 'b' || fo == 'B')
+        fon = 0xb;
+    else if (fo == 'c' || fo == 'C')
+        fon = 0xc;
+    else if (fo == 'd' || fo == 'D')
+        fon = 0xd;
+    else if (fo == 'e' || fo == 'E')
+        fon = 0xe;
+    else if (fo == 'f' || fo == 'F')
+        fon = 0xf;
+    else
+        fon = 0;
 
-	if(flag==0)
-		result=((fn<<4)|sn)&0xFF;
-	else
-		result=((fn<<12)|(sn<<8)|(tn<<4)|fon)&0xFFFF;
-	return result;
+    if (flag == 0)
+        result = ((fn << 4) | sn) & 0xFF;
+    else
+        result = ((fn << 12) | (sn << 8) | (tn << 4) | fon) & 0xFFFF;
+    return result;
 }
