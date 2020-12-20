@@ -1,7 +1,7 @@
-SOURCES = main.c routine.c jumps.c
+SOURCES = main.c routine.c jumps.c parameter.c
 	
 OBJS    = ${SOURCES:.c=.o}
-HDRS	= opcodes.h routine.h jumps.h
+HDRS	= opcodes.h routine.h jumps.h parameter.h
 
 COPTIONS  =-O2
 LOPTIONS   =

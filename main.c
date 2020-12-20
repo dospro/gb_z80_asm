@@ -32,25 +32,19 @@
 #include"opcodes.h"
 #include "routine.h"
 #include "jumps.h"
+#include "parameter.h"
 
 struct Operation {
     char opcode_args[64];
-    int first_arg_value;
-    int second_arg_value;
-    int is_first_arg_word;
-    int is_second_arg_word;
-    int is_first_arg_bit;
-    int is_second_arg_bit;
-    int first_arg_bits;
-    int second_arg_bits;
+    struct Parameter arg1;
+    struct Parameter arg2;
 };
 
 /*globals*/
 FILE *asm_file, *gb_file;
 int assemble(FILE *in, FILE *out);
-int op_compare(char *opcode_name, char *arguments);
-int process_all(struct Operation *operation, char *arg1, char *arg2, int line_number);
-int atoh(char *number);
+int search_opcode(char *opcode_name, char *arguments);
+int scan_arguments(struct Operation *operation, char *arg1, char *arg2, int line_number);
 
 int main(int argc, char *argv[]) {
     char filename[128];
@@ -230,7 +224,8 @@ int assemble(FILE *in, FILE *out) {
             fputc((int) (seek_temp >> 8) & 0xFF, out);
             fseek(out, seek_temp, SEEK_SET);
         } else if (strcmp(opcode, ".db") == 0) {//If we find a .db option then we write the byte as it is.
-            fputc(atoh(arg1), out);
+            //fputc(atoh(arg1), out);
+            printf("Not implemented yet\n");
         } else if (strchr(opcode, ':') != NULL) {
             // If there is a : in the opcode, then its a routine
             add_routine(&routines_list, strtok(opcode, ":"), ftell(out));
@@ -252,7 +247,7 @@ int assemble(FILE *in, FILE *out) {
             //Now temp_arg has the name of the routine, lets keep it in our dynamic array
             add_jump(&jumps_list, routine_name, ftell(out) + 1, 0, 16);
 
-            int result = op_compare(opcode, final_arg); // Get the correct opcode number
+            int result = search_opcode(opcode, final_arg); // Get the correct opcode number
             if (result == -1) {
                 printf("Error line %d, opcode: %s with arguments %s has an error or its an assembler bug\n",
                        line_counter, opcode,
@@ -277,7 +272,7 @@ int assemble(FILE *in, FILE *out) {
 
             add_jump(&jumps_list, routine_name, ftell(out) + 1, 0, 16);
 
-            int result = op_compare(opcode, final_arg);//Get the correct opcode number
+            int result = search_opcode(opcode, final_arg);//Get the correct opcode number
             if (result == -1) {
                 printf("Error line %d, opcode: %s with arguments %s has an error or its an assembler bug\n",
                        line_counter, opcode,
@@ -301,7 +296,7 @@ int assemble(FILE *in, FILE *out) {
             //Now temp_arg has the name of the routine, lets keep it in our dinamic array
             add_jump(&jumps_list, routine_name, ftell(out) + 1, 0, 8);
 
-            int result = op_compare(opcode, final_arg);//Get the correct opcode number
+            int result = search_opcode(opcode, final_arg);//Get the correct opcode number
             if (result == -1) {
                 printf("Error line %d, opcode: %s with arguments %s has an error or its an asembler bug\n",
                        line_counter, opcode,
@@ -312,10 +307,10 @@ int assemble(FILE *in, FILE *out) {
         } else {
             /*Lets start analizing the first argument begin building the table opcode*/
             struct Operation op;
-            process_all(&op, arg1, arg2, line_counter);
+            scan_arguments(&op, arg1, arg2, line_counter);
             //Finally, we have all the arguments ready to pass them to the opcode table.
             //Here it will be compared and it will return the opcode to write.
-            int result = op_compare(opcode, op.opcode_args);
+            int result = search_opcode(opcode, op.opcode_args);
             if (result == -1) {
                 //If not found, generate an error message
                 printf("error: line %d \n", line_counter);
@@ -324,10 +319,10 @@ int assemble(FILE *in, FILE *out) {
             } else if ((result >> 8) == 0xCB) {
                 //Now lets write it based in some rules
                 //If we have a CB opcode, then we must write the 2 values
-                if (op.is_first_arg_bit == 1) {
+                if (op.arg1.is_bit == true) {
                     //If we have a bit opcode then we introduce it inside the value
                     result = result & 0xFF;
-                    result = result | (op.first_arg_bits << 3);//Here we introduce the number of the bit
+                    result = result | (op.arg1.bits << 3); // Here we introduce the number of the bit
                     fputc(0xCB, out);//Write the CB and
                     fputc(result, out);//then the ready opcode
                 } else {
@@ -339,23 +334,20 @@ int assemble(FILE *in, FILE *out) {
                 fputc(0x10, out);
                 fputc(0, out);
             } else {
-                if (op.is_first_arg_word == 0) {
-                    //If there is an n value
+                if (op.arg1.is_word == false) {
                     fputc(result, out);
-                    fputc(op.first_arg_value, out);
-                } else if (op.is_first_arg_word == 1) {
-                    //If there is a 2 bytes value
-                    fputc(result, out);//write the opcode
-                    fputc((op.first_arg_value & 0xFF), out);//write the less significant byte
-                    fputc((op.first_arg_value >> 8) & 0xFF, out);//write the most significant byte
-                } else if (op.is_second_arg_word == 0) {
-                    //If there is an n value
+                    fputc(op.arg1.value, out);
+                } else if (op.arg1.is_word == true) {
                     fputc(result, out);
-                    fputc(op.second_arg_value, out);
-                } else if (op.is_second_arg_word == 1) {
+                    fputc((op.arg1.value & 0xFF), out);//write the less significant byte
+                    fputc((op.arg1.value >> 8) & 0xFF, out);//write the most significant byte
+                } else if (op.arg2.is_word == false) {
+                    fputc(result, out);
+                    fputc(op.arg2.value, out);
+                } else if (op.arg2.is_word == true) {
                     fputc(result, out); // write the opcode
-                    fputc((op.second_arg_value & 0xFF), out); // write the less significant byte
-                    fputc((op.second_arg_value >> 8) & 0xFF, out); // write the most significant byte
+                    fputc((op.arg2.value & 0xFF), out); // write the less significant byte
+                    fputc((op.arg2.value >> 8) & 0xFF, out); // write the most significant byte
                 } else {
                     fputc(result, out);
                 }
@@ -399,163 +391,27 @@ int assemble(FILE *in, FILE *out) {
 
 
 /*
- * Routine that will take the opcode name and its arguments and produce
- * a string for doing a look up in the opcodes table
+ * Routine that will take an opcode arguments and produce
+ * data structure Operation with information about the
+ * scanned arguments.
  */
-int process_all(struct Operation *operation, char *arg1, char *arg2, int line_number) {
-    /*Lets go first with irregularities*/
-    //Check if there is argument
-
-    //If there is no argument
-    if (arg1[0] == '-') {
-        strcpy(operation->opcode_args, "-");
-    } else if (arg1[0] == '0' || arg1[0] == '$') {
-        //If the first letter of the argument is 0 or $, then its a hex number
-        // This is an optional letter to identify hexadecimal numbers
-        if (arg1[1] == 'x') {
-            operation->first_arg_value = atoh(&arg1[2]);
-        } else {
-            operation->first_arg_value = atoh(&arg1[1]);
-        }
-        //If its more than 1 byte
-        if (operation->first_arg_value > 0xFF) {
-            operation->is_first_arg_word = 1;
-            strcpy(operation->opcode_args, "**");
-        } else {
-            operation->is_first_arg_word = 0;
-            strcpy(operation->opcode_args, "*");
-        }
-    } else if (arg1[0] == '0' || arg1[0] == '1' || arg1[0] == '2' || arg1[0] == '3' || arg1[0] == '4' ||
-               arg1[0] == '5' || arg1[0] == '6' || arg1[0] == '7') {
-        //Bits number(0-7)
-        operation->first_arg_bits = atoi(arg1);
-        operation->is_first_arg_bit = 1;
-        strcpy(operation->opcode_args, "n");
-
-        //Now check if this bit is 0-7
-        if (operation->first_arg_bits > 7) {
-            printf("Error in line %d: there is no bit %d\n", line_number, operation->first_arg_bits);
-            return -1;
-        }
-    } else if (arg1[0] == '(' || arg1[0] == '[') {
-        /* If we have a parenthesis or a bracket
-        then we must know whats inside */
-
-        //Ok, if we have an number, we do the same as before except for the  final_arg
-        if (arg1[1] == '0' || arg1[1] == '$') {
-            //If the first letter of the argument is 0 or $, then its a number
-            //We must be careful not to write ld (0xFF00+n),x...
-            if (strlen(arg1) > 9) {
-                printf("Error in line %d, unknown argument %s\n", line_number, arg1);
-                return -1;
-            }
-            if (arg1[2] == 'x') {
-                //This is an optional letter to identify hexadecimal numbers
-                operation->first_arg_value = atoh(arg1 + 3);
-            } else {
-                operation->first_arg_value = atoh(arg1 + 2);
-            }
-            if (operation->first_arg_value > 0xFF) {
-                //If its more than 1 byte
-                operation->is_first_arg_word = 1;
-                strcpy(operation->opcode_args, "(**)");
-            } else {
-                operation->is_first_arg_word = 0;
-                strcpy(operation->opcode_args, "(*)");
-            }
-        } else if (arg1[1] == 'f' && arg1[2] == 'f' && arg1[3] == 0 && arg1[4] == 0 && arg1[5] == '+' &&
-                   arg1[6] != 'c') {
-            //If there is no symbol, then it is ff00+number
-            operation->first_arg_value = atoh(arg1 + 6);
-            operation->is_first_arg_word = 0;
-            strcpy(operation->opcode_args, "(ff00+*)");
-        } else {
-            strcpy(operation->opcode_args, arg1);
-        }
-    } else {
-        //Here we are ready with irregularities, lets just compare and autocomplete
-        strcpy(operation->opcode_args, arg1);
+int scan_arguments(struct Operation *operation, char *arg1, char *arg2, int line_number) {
+    struct Parameter param1, param2;
+    if (process_first_argument(&param1, arg1) == false) {
+        printf("ERROR: Line %d Invalid first argument.\n", line_number);
+        return -1;
     }
-    //With this we finish with the first argument
-    //Lets go with the second argument which is the same process.
-    /**********************************************************/
-    //Check if there is argument
-    //If there is no argument we do nothing
-    //Numbers:
-
-    if (arg2[0] == '0' || arg2[0] == '$') {
-        //If the first letter of the argument is 0 or $, then its a number
-        if (arg2[1] == 'x') {
-            //This is an optional letter to identify hexadecimal numbers
-            operation->second_arg_value = atoh(arg2 + 2);
-        } else {
-            operation->second_arg_value = atoh(arg2 + 1);
-
-        }
-        if (operation->second_arg_value > 0xFF) {
-            //If its more than 1 byte
-            operation->is_second_arg_word = 1;
-            strcat(operation->opcode_args, ",**");
-        } else {
-            operation->is_second_arg_word = 0;
-            strcat(operation->opcode_args, ",*");
-        }
-    } else if (arg2[0] == '0' || arg2[0] == '1' || arg2[0] == '2' || arg2[0] == '3' || arg2[0] == '4' ||
-               arg2[0] == '5' || arg2[0] == '6' || arg2[0] == '7') {
-        //Bits number(0-7)
-        operation->second_arg_bits = atoi(arg2);
-        operation->is_second_arg_bit = 1;
-        strcat(operation->opcode_args, ",n");
-        //Now check if this bit is 0-7
-        if (operation->second_arg_bits > 7) {
-            printf("Error in line %d: there is no bit %d\n", line_number, operation->second_arg_bits);
-            return 1;
-        }
-    } else if (arg2[0] == '(' || arg2[0] == '[') {
-        // Parenthesis:
-        // Ok, if we have a parenthesis or a square bracket
-        // then we must know whats inside
-
-        //Ok, if we have an number, we do the same as before except for the  final_arg
-        if (arg2[1] == '0' || arg2[1] == '$') {
-            //If the first letter of the argument is 0 or $, then its a number
-            //We must be careful not to write ld (0xFF00+n),x...
-            if (strlen(arg2) > 9) {
-                printf("Error in line %d, unknown argument %s\n", line_number, arg1);
-                return -1;
-            }
-            if (arg2[2] == 'x') {
-                //This is an optional letter to identify hexadecimal numbers
-                operation->second_arg_value = atoh(arg2 + 3);
-            } else {
-                operation->second_arg_value = atoh(arg2 + 2);
-            }
-            if (operation->second_arg_value > 0xFF) {
-                //If its more than 1 byte
-                operation->is_second_arg_word = 1;
-                strcpy(operation->opcode_args, ",(**)");
-            } else {
-                operation->is_second_arg_word = 0;
-                strcpy(operation->opcode_args, ",(*)");
-            }
-        } else if (arg2[1] == 'f' && arg2[2] == 'f' && arg2[3] == 0 && arg2[4] == 0 && arg2[5] == '+' &&
-                   arg2[6] != 'c') {
-            //If there is no symbol, then it is ff00+number
-            operation->second_arg_value = atoh(arg1 + 6);
-            operation->is_second_arg_word = 0;
-            strcpy(operation->opcode_args, ",(ff00+*)");
-        }
-    } else {
-        //Here we are ready with irregularities, lets just compare and autocomplete
-        if (arg2[0] != 0) {
-            strcat(operation->opcode_args, ",");
-            strcat(operation->opcode_args, arg2);
-        }
+    if (process_second_parameter(&param2, arg2) == false) {
+        printf("ERROR: Line %d Invalid second argument.\n", line_number);
+        return -1;
     }
+    strcpy(operation->opcode_args, param1.string);
+    strcat(operation->opcode_args, param2.string);
+
     return 0;
 }
 
-int op_compare(char *opcode_name, char *arguments) {
+int search_opcode(char *opcode_name, char *arguments) {
     //This will compare the opcode and the arguments
     //with the table and return its opcode.
     int i;
@@ -570,164 +426,4 @@ int op_compare(char *opcode_name, char *arguments) {
             }
     }
     return -1;
-}
-
-int atoh(char *number) {
-    char f, s, t, fo;
-    int result;
-    int fn, sn, tn, fon, flag = 0;
-    f = number[0];
-    s = number[1];
-    t = number[2];
-    fo = number[3];
-
-    if (f == '0')
-        fn = 0;
-    else if (f == '1')
-        fn = 1;
-    else if (f == '2')
-        fn = 2;
-    else if (f == '3')
-        fn = 3;
-    else if (f == '4')
-        fn = 4;
-    else if (f == '5')
-        fn = 5;
-    else if (f == '6')
-        fn = 6;
-    else if (f == '7')
-        fn = 7;
-    else if (f == '8')
-        fn = 8;
-    else if (f == '9')
-        fn = 9;
-    else if (f == 'a' || f == 'A')
-        fn = 0xa;
-    else if (f == 'b' || f == 'B')
-        fn = 0xb;
-    else if (f == 'c' || f == 'C')
-        fn = 0xc;
-    else if (f == 'd' || f == 'D')
-        fn = 0xd;
-    else if (f == 'e' || f == 'E')
-        fn = 0xe;
-    else if (f == 'f' || f == 'F')
-        fn = 0xf;
-    else
-        fn = 0;
-
-    if (s == '0')
-        sn = 0;
-    else if (s == '1')
-        sn = 1;
-    else if (s == '2')
-        sn = 2;
-    else if (s == '3')
-        sn = 3;
-    else if (s == '4')
-        sn = 4;
-    else if (s == '5')
-        sn = 5;
-    else if (s == '6')
-        sn = 6;
-    else if (s == '7')
-        sn = 7;
-    else if (s == '8')
-        sn = 8;
-    else if (s == '9')
-        sn = 9;
-    else if (s == 'a' || s == 'A')
-        sn = 0xa;
-    else if (s == 'b' || s == 'B')
-        sn = 0xb;
-    else if (s == 'c' || s == 'C')
-        sn = 0xc;
-    else if (s == 'd' || s == 'D')
-        sn = 0xd;
-    else if (s == 'e' || s == 'E')
-        sn = 0xe;
-    else if (s == 'f' || s == 'F')
-        sn = 0xf;
-    else
-        sn = 0;
-
-    if (t == '0')
-        tn = 0;
-    else if (t == '1')
-        tn = 1;
-    else if (t == '2')
-        tn = 2;
-    else if (t == '3')
-        tn = 3;
-    else if (t == '4')
-        tn = 4;
-    else if (t == '5')
-        tn = 5;
-    else if (t == '6')
-        tn = 6;
-    else if (t == '7')
-        tn = 7;
-    else if (t == '8')
-        tn = 8;
-    else if (t == '9')
-        tn = 9;
-    else if (t == 'a' || t == 'A')
-        tn = 0xa;
-    else if (t == 'b' || t == 'B')
-        tn = 0xb;
-    else if (t == 'c' || t == 'C')
-        tn = 0xc;
-    else if (t == 'd' || t == 'D')
-        tn = 0xd;
-    else if (t == 'e' || t == 'E')
-        tn = 0xe;
-    else if (t == 'f' || t == 'F')
-        tn = 0xf;
-    else if (t == ')' || t == 0 || t == ']')
-        tn = 0;
-    else {
-        tn = 0;
-        flag = 1;
-    }
-
-    if (fo == '0')
-        fon = 0;
-    else if (fo == '1')
-        fon = 1;
-    else if (fo == '2')
-        fon = 2;
-    else if (fo == '3')
-        fon = 3;
-    else if (fo == '4')
-        fon = 4;
-    else if (fo == '5')
-        fon = 5;
-    else if (fo == '6')
-        fon = 6;
-    else if (fo == '7')
-        fon = 7;
-    else if (fo == '8')
-        fon = 8;
-    else if (fo == '9')
-        fon = 9;
-    else if (fo == 'a' || fo == 'A')
-        fon = 0xa;
-    else if (fo == 'b' || fo == 'B')
-        fon = 0xb;
-    else if (fo == 'c' || fo == 'C')
-        fon = 0xc;
-    else if (fo == 'd' || fo == 'D')
-        fon = 0xd;
-    else if (fo == 'e' || fo == 'E')
-        fon = 0xe;
-    else if (fo == 'f' || fo == 'F')
-        fon = 0xf;
-    else
-        fon = 0;
-
-    if (flag == 0)
-        result = ((fn << 4) | sn) & 0xFF;
-    else
-        result = ((fn << 12) | (sn << 8) | (tn << 4) | fon) & 0xFFFF;
-    return result;
 }
