@@ -1,6 +1,8 @@
 #ifndef GB_Z80_ASM_JUMPS_H
 #define GB_Z80_ASM_JUMPS_H
 
+#include <stdio.h>
+
 struct JumpList {
     struct Jump *root;
 };
@@ -13,9 +15,11 @@ struct Jump {
     struct Jump *next; // Next node
 };
 
+struct JumpList create_jumps_list();
+
 int add_jump(struct JumpList *list, char *name, long address, int value, int bits);
 
-struct Jump *pop_jump(struct JumpList list);
+struct Jump *pop_jump(struct JumpList *list);
 
 struct Jump *search_by_name(struct JumpList list, char *name);
 

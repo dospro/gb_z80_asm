@@ -4,6 +4,12 @@
 #include <string.h>
 #include <stdlib.h>
 
+struct JumpList create_jumps_list() {
+    struct JumpList list;
+    list.root = NULL;
+    return list;
+}
+
 int add_jump(struct JumpList *list, char *name, long address, int value, int bits) {
     struct Jump *pointer;
 
@@ -36,11 +42,14 @@ int add_jump(struct JumpList *list, char *name, long address, int value, int bit
  *
  * You must manually free the allocated memory.
  */
-struct Jump *pop_jump(struct JumpList list) {
+struct Jump *pop_jump(struct JumpList *list) {
     struct Jump *pointer;
 
-    pointer = list.root;
-    list.root = pointer->next;
+    pointer = list->root;
+    if (pointer == NULL) {
+        return NULL;
+    }
+    list->root = pointer->next;
     return pointer;
 }
 

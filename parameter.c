@@ -14,6 +14,7 @@ bool is_bit_number(char number) {
 
 bool process_first_argument(struct Parameter *parameter, char *arg) {
     parameter->string[0] = 0;
+    parameter->type = RESERVED;
     if (arg[0] == '-') {
         strcpy(parameter->string, "-");
     } else if (arg[0] == '0' || arg[0] == '$') {
@@ -26,16 +27,16 @@ bool process_first_argument(struct Parameter *parameter, char *arg) {
         }
         //If its more than 1 byte
         if (parameter->value > 0xFF) {
-            parameter->is_word = true;
+            parameter->type = WORD;
             strcpy(parameter->string, "**");
         } else {
-            parameter->is_word = false;
+            parameter->type = BYTE;
             strcpy(parameter->string, "*");
         }
     } else if (is_bit_number(arg[0])) {
         //Bits number(0-7)
-        parameter->bits = strtoul(arg, NULL, 10);
-        parameter->is_bit = true;
+        parameter->value = strtoul(arg, NULL, 10);
+        parameter->type = BIT;
         strcpy(parameter->string, "n");
     } else if (arg[0] == '(' || arg[0] == '[') {
         /* If we have a parenthesis or a bracket
@@ -57,17 +58,17 @@ bool process_first_argument(struct Parameter *parameter, char *arg) {
             }
             if (parameter->value > 0xFF) {
                 //If its more than 1 byte
-                parameter->is_word = true;
+                parameter->type = WORD;
                 strcpy(parameter->string, "(**)");
             } else {
-                parameter->is_word = false;
+                parameter->type = BYTE;
                 strcpy(parameter->string, "(*)");
             }
         } else if (arg[1] == 'f' && arg[2] == 'f' && arg[3] == 0 && arg[4] == 0 && arg[5] == '+' &&
                    arg[6] != 'c') {
             //If there is no symbol, then it is ff00+number
             parameter->value = strtoul(&arg[6], NULL, 16);
-            parameter->is_word = false;
+            parameter->type = BYTE;
             strcpy(parameter->string, "(ff00+*)");
         } else {
             strcpy(parameter->string, arg);
@@ -81,6 +82,7 @@ bool process_first_argument(struct Parameter *parameter, char *arg) {
 
 bool process_second_parameter(struct Parameter *parameter, char *arg) {
     parameter->string[0] = 0;
+    parameter->type = RESERVED;
     if (arg[0] == '-') {
         strcpy(parameter->string, "-");
     } else if (arg[0] == '0' || arg[0] == '$') {
@@ -92,16 +94,16 @@ bool process_second_parameter(struct Parameter *parameter, char *arg) {
             parameter->value = strtoul(&arg[1], NULL, 16);
         }
         if (parameter->value > 0xFF) {
-            parameter->is_word = true;
+            parameter->type = WORD;
             strcpy(parameter->string, ",**");
         } else {
-            parameter->is_word = false;
+            parameter->type = BYTE;
             strcpy(parameter->string, ",*");
         }
     } else if (is_bit_number(arg[0])) {
         //Bits number(0-7)
-        parameter->bits = strtoul(arg, NULL, 10);
-        parameter->is_bit = true;
+        parameter->value = strtoul(arg, NULL, 10);
+        parameter->type = BIT;
         strcpy(parameter->string, ",n");
     } else if (arg[0] == '(' || arg[0] == '[') {
         // Parenthesis:
@@ -124,17 +126,17 @@ bool process_second_parameter(struct Parameter *parameter, char *arg) {
             }
             if (parameter->value > 0xFF) {
                 //If its more than 1 byte
-                parameter->is_word = true;
+                parameter->type = WORD;
                 strcpy(parameter->string, ",(**)");
             } else {
-                parameter->is_word = false;
+                parameter->type = BYTE;
                 strcpy(parameter->string, ",(*)");
             }
         } else if (arg[1] == 'f' && arg[2] == 'f' && arg[3] == 0 && arg[4] == 0 && arg[5] == '+' &&
                    arg[6] != 'c') {
             //If there is no symbol, then it is ff00+number
             parameter->value = strtoul(&arg[6], NULL, 16);
-            parameter->is_word = false;
+            parameter->type = BYTE;
             strcpy(parameter->string, ",(ff00+*)");
         }
     } else {

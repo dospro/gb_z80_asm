@@ -3,12 +3,17 @@
 
 #include <stdbool.h>
 
+enum ParamType {
+    RESERVED,
+    BYTE,
+    WORD,
+    BIT
+};
+
 struct Parameter {
     char string[32];
     int value;
-    bool is_word;
-    bool is_bit;
-    int bits;
+    enum ParamType type;
 };
 
 bool process_first_argument(struct Parameter *parameter, char *arg);

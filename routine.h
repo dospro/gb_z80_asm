@@ -13,9 +13,11 @@ struct Routine {
     struct Routine *next;
 };
 
+struct RoutineList create_routines_list();
+
 int add_routine(struct RoutineList *list, char *name, long address);
 
-struct Routine *pop_routine(struct RoutineList list);
+struct Routine *pop_routine(struct RoutineList *list);
 
 struct Routine *search_routine_by_name(struct RoutineList list, char *name);
 
