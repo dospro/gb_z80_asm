@@ -1,49 +1,18 @@
-/*
- *     Proyect: gbz80Asm
- *    Filename: main.cpp
- *     Version: v2.0
- * Description: Gameboy Z80 Asembler
- *     License: GPLv2
- *
- *      Author: Copyright (C) Ruben Daniel Gutierrez Cruz <dospro@gmail.com>
- *        Date: 14-8-2007
- *
- *
- *	This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version. 
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details. 
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
- *
- */
-
-#include<stdio.h>
-#include<stdlib.h>
-#include<string.h>
-#include<ctype.h>
-#include"opcodes.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <stdbool.h>
+#include <ctype.h>
+#include "opcode.h"
 #include "routine.h"
 #include "jumps.h"
-#include "parameter.h"
 
-struct Arguments {
-    char opcode_args[64];
-    struct Parameter arg1;
-    struct Parameter arg2;
-};
+#define ENTRY_POINT 0x100
 
 
 int assemble(FILE *in, FILE *out);
-int search_opcode(char *opcode_name, char *arguments);
-int scan_arguments(struct Arguments *operation, char *arg1, char *arg2, int line_number);
+void emit_machine_code(FILE *file, struct MachineCode *code);
+void emit_entry_point(FILE *file);
 
 int main(int argc, char *argv[]) {
     char filename[128];
@@ -178,31 +147,21 @@ bool is_branch_opcode(char *opcode, char *arg) {
  */
 int assemble(FILE *in, FILE *out) {
     int line_counter = 0;
-    char buffer[512];//Max number of caracters per line
-    char opcode[64];//This will have the opcode string(adc, ld, or, srl....)
-    char arg1[64];//First argument(it should not even get bigger than 16)
-    char arg2[64];//Second argumnet if there is
-    char final_arg[64];//This is the string that will be compared with the opcodes table
-    //To get the correct opcode
+    char buffer[512]; // Max number of characters per line
+    char opcode[64]; // This will have the opcode string(adc, ld, or, srl....)
+    char arg1[64]; // First argument(it should not even get bigger than 16)
+    char arg2[64]; // Second argument if there is
     struct RoutineList routines_list = create_routines_list();
     struct JumpList jumps_list = create_jumps_list();
     FILE *inc_file;
 
-    while (!feof(in))//While we havent reach the end of the file, continue assembling
-    {
-        /*Ok, first we must read the opcode, so we use te normal scanf, after that
-        we read with fgets to read until the comments end(if there so).
-        We separate the arguments, eliminate any unecesary spaces and
-        finally produce the new opcode*/
-
-        /*Lets clear the buffers*/
+    while (!feof(in)) {
         memset(buffer, 0, sizeof(buffer));
         memset(arg1, 0, sizeof(arg1));
         memset(arg2, 0, sizeof(arg2));
-        memset(final_arg, 0, sizeof(final_arg));
         memset(opcode, 0, sizeof(opcode));
 
-        fgets(buffer, 511, in);//Get everything else
+        fgets(buffer, 511, in);
         char *clean_buffer = strtrim(buffer);
         if (strlen(clean_buffer) == 0 || clean_buffer[0] == ';') {
             free(clean_buffer);
@@ -212,35 +171,20 @@ int assemble(FILE *in, FILE *out) {
         split_line(clean_buffer, opcode, arg1, arg2);
         free(clean_buffer);
 
-        /*now we have the two argument separated in different variable*/
-
-        //well, here we still dont know if we really have an opcode or something else
-        //Lets first check for any preassembly instructions and then for routines
-        /*New version add*/
+        /* now we have the two argument separated in different variables */
 
         //If we have a special instruction .include then we must include this.
-        if (strcmp(opcode, ".include") == 0) {
-            //The file will be assembled exactly where the include is.
-            inc_file = fopen(arg1, "r");
-            if (inc_file == NULL)
-                printf("Couldn't include %s\n", arg1);
-            else {
-                assemble(inc_file, out);
-            }
-        } else if (strcmp(opcode, ".main") == 0) {
+        if (strcmp(opcode, ".main") == 0) {
             //If we find the option .main then the program starts there not in 0x150
-            long seek_temp = ftell(out);
-            fseek(out, 0x100, SEEK_SET);//get to the program start
-            fputc(0xC3, out);//Wrtie the new jump
-            fputc((int) seek_temp & 0xFF, out);
-            fputc((int) (seek_temp >> 8) & 0xFF, out);
-            fseek(out, seek_temp, SEEK_SET);
+            emit_entry_point(out);
         } else if (strcmp(opcode, ".db") == 0) {
+            /* TODO: emit_raw_data(values, size) */
             //If we find a .db option then we write the byte as it is.
             //fputc(atoh(arg1), out);
             printf("Not implemented yet\n");
         } else if (strchr(opcode, ':') != NULL) {
             // If there is a : in the opcode, then its a routine
+            /* TODO: we can have a name and an opcode in the same line */
             add_routine(&routines_list, strtok(opcode, ":"), ftell(out));
         } else if (is_branch_opcode(opcode, arg1) == true) {
             /* If we get a call or a jp then there is a routine name
@@ -260,13 +204,16 @@ int assemble(FILE *in, FILE *out) {
             /* ftell(out) + 1 is the position where we will fill the real routine address */
             add_jump(&jumps_list, routine_name, ftell(out) + 1, 0, 16);
 
-            int result = search_opcode(opcode, argument);
-            if (result == -1) {
+            struct MachineCode code;
+            if ((code.opcode = search_opcode(opcode, argument)) == -1) {
                 printf("ERROR: Line %d. opcode: %s with arguments %s has an error\n", line_counter, opcode, argument);
+            } else {
+                printf("[%s %s] -> ", opcode, argument);
+                code.params_size = 2;
+                code.params[0] = 0;
+                code.params[1] = 0;
+                emit_machine_code(out, &code);
             }
-            fputc(result, out);//Write the opcode
-            fputc(0, out);//Fill with generic 0
-            fputc(0, out);//Fill with generic 0
         } else if (strcmp(opcode, "jr") == 0) {
             /*
              * jr is almost the same as call and jp but it only uses a 1-byte address
@@ -284,63 +231,29 @@ int assemble(FILE *in, FILE *out) {
 
             add_jump(&jumps_list, routine_name, ftell(out) + 1, 0, 8);
 
-            int result = search_opcode(opcode, argument);
-            if (result == -1) {
-                printf("Error line %d, opcode: %s with arguments %s has an error or its an asembler bug\n",
-                       line_counter, opcode,
-                       argument);
+            struct MachineCode code;
+            code.opcode = search_opcode(opcode, argument);
+            if (code.opcode == -1) {
+                printf("ERROR Line %d. Unknown Opcode: %s with arguments %s\n", line_counter, opcode, argument);
+            } else {
+                printf("[%s %s] -> ", opcode, argument);
+                code.params_size = 1;
+                code.params[0] = 0;
+                emit_machine_code(out, &code);
             }
-            fputc(result, out);//Write the opcode
-            fputc(0, out);//Fill with generic 0
         } else {
             /* All other instructions */
-            struct Arguments arguments;
-            scan_arguments(&arguments, arg1, arg2, line_counter);
-            int result = search_opcode(opcode, arguments.opcode_args);
-            if (result == -1) {
-                printf("error: line %d \n", line_counter);
-                printf("Opcode %s with arguments %s was no found\n", opcode, final_arg);
-            } else if ((result >> 8) == 0xCB) {
-                //Now lets write it based in some rules
-                //If we have a CB opcode, then we must write the 2 values
-                if (arguments.arg1.type == BIT) {
-                    //If we have a bit opcode then we introduce it inside the value
-                    result = result & 0xFF;
-                    result = result | (arguments.arg1.value << 3); // Here we introduce the number of the bit
-                    fputc(0xCB, out);//Write the CB and
-                    fputc(result, out);//then the ready opcode
-                } else {
-                    fputc(0xCB, out);//Write the CB and
-                    fputc(result & 0xFF, out);//then the ready opcode
-                }
-            } else if (result == 0x10) {
-                // stop which has 2 opcodes
-                fputc(0x10, out);
-                fputc(0, out);
+            struct MachineCode code;
+            if (get_general_opcode(&code, opcode, arg1, arg2) == false) {
+                printf("Error occurred on line %d\n", line_counter);
             } else {
-                if (arguments.arg1.type == BYTE) {
-                    fputc(result, out);
-                    fputc(arguments.arg1.value, out);
-                } else if (arguments.arg1.type == WORD) {
-                    fputc(result, out);
-                    fputc((arguments.arg1.value & 0xFF), out);//write the less significant byte
-                    fputc((arguments.arg1.value >> 8) & 0xFF, out);//write the most significant byte
-                } else if (arguments.arg2.type == BYTE) {
-                    fputc(result, out);
-                    fputc(arguments.arg2.value, out);
-                } else if (arguments.arg2.type == WORD) {
-                    fputc(result, out); // write the opcode
-                    fputc((arguments.arg2.value & 0xFF), out); // write the less significant byte
-                    fputc((arguments.arg2.value >> 8) & 0xFF, out); // write the most significant byte
-                } else {
-                    fputc(result, out);
-                }
+                emit_machine_code(out, &code);
             }
         }
         line_counter++;
     }
-    //Now lets finish with the routines(calls) and jumps
-    //Fisrt we will go for each call/jp made and search it in the routines list
+    // Now lets finish with the routines(calls) and jumps
+    // First we will go for each call/jp made and search it in the routines list
     for (struct Jump *jump = pop_jump(&jumps_list); jump != NULL; jump = pop_jump(&jumps_list)) {
         struct Routine *routine = search_routine_by_name(routines_list, jump->name);
         if (routine == NULL) {
@@ -373,40 +286,23 @@ int assemble(FILE *in, FILE *out) {
     return 0;
 }
 
+/* Emitter */
 
-/*
- * Routine that will take an opcode arguments and produce
- * data structure Arguments with information about the
- * scanned arguments.
- */
-int scan_arguments(struct Arguments *operation, char *arg1, char *arg2, int line_number) {
-    if (process_first_argument(&operation->arg1, arg1) == false) {
-        printf("ERROR: Line %d Invalid first argument.\n", line_number);
-        return -1;
+void emit_machine_code(FILE *file, struct MachineCode *code) {
+    printf("Emitting: [%x]:[%x] ", ftell(file) + 1, code->opcode);
+    fputc(code->opcode, file);
+    for (int i = 0; i < code->params_size; ++i) {
+        printf("Emitting arg: [%x]:[%x] ", ftell(file) + 1, code->params[i]);
+        fputc(code->params[i], file);
     }
-    if (process_second_parameter(&operation->arg2, arg2) == false) {
-        printf("ERROR: Line %d Invalid second argument.\n", line_number);
-        return -1;
-    }
-    strcpy(operation->opcode_args, operation->arg1.string);
-    strcat(operation->opcode_args, operation->arg2.string);
-
-    return 0;
+    printf("\n");
 }
 
-int search_opcode(char *opcode_name, char *arguments) {
-    //This will compare the opcode and the arguments
-    //with the table and return its opcode.
-    int i;
-    for (i = 0; i < 512; i++)//Go through all the table
-    {
-        if (strcmp(opcode_table[i].op_name, opcode_name) == 0)
-            if (strcmp(opcode_table[i].op_args, arguments) == 0) {
-                if (opcode_table[i].op_val == 0xCB)
-                    return (opcode_table[i].op_val << 8) | (opcode_table[i].op_val2);
-                else
-                    return opcode_table[i].op_val;
-            }
-    }
-    return -1;
+void emit_entry_point(FILE *file) {
+    long seek_temp = ftell(file);
+    fseek(file, ENTRY_POINT, SEEK_SET); // get to the program start
+    fputc(0xC3, file); // Write the new jump
+    fputc((int) seek_temp & 0xFF, file);
+    fputc((int) (seek_temp >> 8) & 0xFF, file);
+    fseek(file, seek_temp, SEEK_SET);
 }

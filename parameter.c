@@ -148,3 +148,23 @@ bool process_second_parameter(struct Parameter *parameter, char *arg) {
     }
     return true;
 }
+
+/*
+ * Routine that will take an opcode arguments and produce
+ * data structure Arguments with information about the
+ * scanned arguments.
+ */
+bool scan_arguments(struct Arguments *operation, char *arg1, char *arg2) {
+    if (process_first_argument(&operation->arg1, arg1) == false) {
+        printf("ERROR: Invalid first argument.\n");
+        return false;
+    }
+    if (process_second_parameter(&operation->arg2, arg2) == false) {
+        printf("ERROR: Invalid second argument.\n");
+        return false;
+    }
+    strcpy(operation->opcode_args, operation->arg1.string);
+    strcat(operation->opcode_args, operation->arg2.string);
+
+    return true;
+}
