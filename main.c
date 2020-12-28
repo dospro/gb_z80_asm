@@ -9,21 +9,38 @@
 
 #define ENTRY_POINT 0x100
 
+struct GBHeader {
+};
 
 int assemble(FILE *in, FILE *out);
 void emit_machine_code(FILE *file, struct MachineCode *code);
 void emit_entry_point(FILE *file);
 
+void emit_header(FILE *file, struct GBHeader *header) {
+    unsigned char nintendo_logo[] = {
+            0xCE, 0xED, 0x66, 0x66, 0xCC, 0x0D, 0x00, 0x0B, 0x03, 0x73, 0x00, 0x83,
+            0x00, 0x0C, 0x00, 0x0D, 0x00, 0x08, 0x11, 0x1F, 0x88, 0x89, 0x00, 0x0E,
+            0xDC, 0xCC, 0x6E, 0xE6, 0xDD, 0xDD, 0xD9, 0x99, 0xBB, 0xBB, 0x67, 0x63,
+            0x6E, 0x0E, 0xEC, 0xCC, 0xDD, 0xDC, 0x99, 0x9F, 0xBB, 0xB9, 0x33, 0x3E
+    };
+    unsigned char zeros[0x400] = {0};
+    fwrite(zeros, sizeof(unsigned char), 0x400, file);
+
+    fseek(file, 0x104, SEEK_SET);
+    fwrite(&nintendo_logo, 1, sizeof(nintendo_logo), file);
+    fseek(file, 0x100, SEEK_SET);
+    fputc(0xC3, file);
+    fputc(0x50, file);
+    fputc(0x01, file);//Put the jump to the 150 address
+    fseek(file, 0x150, SEEK_SET);
+}
+
 int main(int argc, char *argv[]) {
     char filename[128];
     FILE *asm_file, *gb_file;
-    unsigned char nintendo_logo[] = {0xCE, 0xED, 0x66, 0x66, 0xCC, 0x0D, 0x00, 0x0B, 0x03, 0x73,
-                                     0x00, 0x83, 0x00, 0x0C, 0x00, 0x0D, 0x00, 0x08, 0x11, 0x1F,
-                                     0x88, 0x89, 0x00, 0x0E, 0xDC, 0xCC, 0x6E, 0xE6, 0xDD, 0xDD,
-                                     0xD9, 0x99, 0xBB, 0xBB, 0x67, 0x63, 0x6E, 0x0E, 0xEC, 0xCC,
-                                     0xDD, 0xDC, 0x99, 0x9F, 0xBB, 0xB9, 0x33, 0x3E};
-    printf("GB-z80 assembler v2 by dospro(dospro@gmail.com)\n");
-    printf("Web: http://boigb.sourceforge.net\n");
+
+    printf("GB-z80 assembler v3 by dospro\n");
+    printf("Web: https://github.com/dospro/gb_z80_asm\n");
     if (argc < 2) {
         printf("gbz80_asm.exe <asm_file.asm>\n");
         exit(0);
@@ -35,29 +52,27 @@ int main(int argc, char *argv[]) {
         exit(0);
     }
     strcpy(filename, argv[1]);
+    for (unsigned long i = strlen(filename); i >=0; --i) {
+        if (filename[i] == '.') {
+            filename[i] = 0;
+            break;
+        }
+    }
     strcat(filename, ".gb");
     gb_file = fopen(filename, "w+");
     if (gb_file == NULL) {
         printf("Couldn't create gb file\n");
+        fclose(asm_file);
         exit(0);
     }
-    printf("Making header:\n");
-    for (int i = 0; i < 1024 * 32; i++)
-        fputc(0, gb_file);//Fill the rom with 0
-    fseek(gb_file, 0x104, SEEK_SET);
-    fwrite(&nintendo_logo, 1, sizeof(nintendo_logo), gb_file);
-    fseek(gb_file, 0x100, SEEK_SET);
-    fputc(0xC3, gb_file);
-    fputc(0x50, gb_file);
-    fputc(0x01, gb_file);//Put the jump to the 150 address
-    fseek(gb_file, 0x150, SEEK_SET);
-    printf("Assembling...please wait\n");
+    emit_header(gb_file, NULL);
+    printf("Assembling...\n");
+
     assemble(asm_file, gb_file);
-    printf("Freeing memory\n");
 
     fclose(asm_file);
     fclose(gb_file);
-    printf("Finish...exiting\n");
+    printf("Done\n");
     return 0;
 }
 
@@ -153,7 +168,6 @@ int assemble(FILE *in, FILE *out) {
     char arg2[64]; // Second argument if there is
     struct RoutineList routines_list = create_routines_list();
     struct JumpList jumps_list = create_jumps_list();
-    FILE *inc_file;
 
     while (!feof(in)) {
         memset(buffer, 0, sizeof(buffer));
