@@ -3,4 +3,4 @@ project(gb_z80_asm C)
 
 set(CMAKE_C_STANDARD 11)
 
-add_executable(gb_z80_asm main.c routine.c jumps.c parameter.c opcode.c)
+add_executable(gb_z80_asm src/main.c src/routine.c src/jumps.c src/parameter.c src/opcode.c)
