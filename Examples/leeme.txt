@@ -1,4 +1,0 @@
-Use:
-gbz80asm test.asm test.gb
-
-This should show the character "A" all over the screen.
