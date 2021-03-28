@@ -4,13 +4,13 @@
 #include <stdbool.h>
 #include <ctype.h>
 #include "opcode.h"
+#include "list.h"
 #include "routine.h"
 #include "jumps.h"
+#include "cli.h"
 
 #define ENTRY_POINT 0x100
 
-struct GBHeader {
-};
 
 int assemble(FILE *in, FILE *out);
 void emit_machine_code(FILE *file, struct MachineCode *code);
@@ -35,6 +35,7 @@ void emit_header(FILE *file, struct GBHeader *header) {
     fseek(file, 0x150, SEEK_SET);
 }
 
+
 int main(int argc, char *argv[]) {
     char filename[128];
     FILE *asm_file, *gb_file;
@@ -52,7 +53,7 @@ int main(int argc, char *argv[]) {
         exit(0);
     }
     strcpy(filename, argv[1]);
-    for (unsigned long i = strlen(filename); i >=0; --i) {
+    for (size_t i = strlen(filename); i >= 0; --i) {
         if (filename[i] == '.') {
             filename[i] = 0;
             break;
@@ -166,8 +167,8 @@ int assemble(FILE *in, FILE *out) {
     char opcode[64]; // This will have the opcode string(adc, ld, or, srl....)
     char arg1[64]; // First argument(it should not even get bigger than 16)
     char arg2[64]; // Second argument if there is
-    struct RoutineList routines_list = create_routines_list();
-    struct JumpList jumps_list = create_jumps_list();
+    struct List routines_list = create_list();
+    struct List jumps_list = create_jumps_list();
 
     while (!feof(in)) {
         memset(buffer, 0, sizeof(buffer));
@@ -199,7 +200,7 @@ int assemble(FILE *in, FILE *out) {
         } else if (strchr(opcode, ':') != NULL) {
             // If there is a : in the opcode, then its a routine
             /* TODO: we can have a name and an opcode in the same line */
-            add_routine(&routines_list, strtok(opcode, ":"), ftell(out));
+            add_routine(&routines_list, opcode, ftell(out));
         } else if (is_branch_opcode(opcode, arg1) == true) {
             /* If we get a call or a jp then there is a routine name
              * We must take this routine name and keep it so at the end
@@ -269,7 +270,7 @@ int assemble(FILE *in, FILE *out) {
     // Now lets finish with the routines(calls) and jumps
     // First we will go for each call/jp made and search it in the routines list
     for (struct Jump *jump = pop_jump(&jumps_list); jump != NULL; jump = pop_jump(&jumps_list)) {
-        struct Routine *routine = search_routine_by_name(routines_list, jump->name);
+        struct Routine *routine = search_routine_by_name(&routines_list, jump->name);
         if (routine == NULL) {
             printf("ERROR: There is a jump to an undefined routine %s\n", jump->name);
         }
@@ -295,7 +296,7 @@ int assemble(FILE *in, FILE *out) {
 
         free(jump);
     }
-    free_routines(routines_list);
+    free_routines(&routines_list);
     //Everything resulted ok, no errors
     return 0;
 }

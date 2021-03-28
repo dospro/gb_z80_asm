@@ -1,81 +1,41 @@
 #include "routine.h"
 
-#include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 
-struct RoutineList create_routines_list() {
-    struct RoutineList list;
-    list.root = NULL;
-    return list;
+struct List create_routines_list() {
+    return create_list();
 }
 
-int add_routine(struct RoutineList *list, char *name, long address) {
-    struct Routine *pointer;
-
-    if (list->root == NULL) {
-        list->root = (struct Routine *) malloc(sizeof(struct Routine));
-        pointer = list->root;
-    } else {
-        pointer = list->root;
-        while (pointer->next != NULL) {
-            pointer = pointer->next;
-        }
-        pointer->next = (struct Routine *) malloc(sizeof(struct Routine));
-        pointer = pointer->next;
-    }
-    if (pointer == NULL) {
-        printf("ERROR: Unable to allocate memory for new routine\n");
-        return -1;
-    }
-
+bool add_routine(struct List *list, char *name, long address) {
+    struct Routine *pointer = (struct Routine *) malloc(sizeof(struct Routine));
     strcpy(pointer->name, strtok(name, ":"));
     pointer->address = address;
-    pointer->next = NULL;
-    return 0;
+    return list_push(list, (void *) pointer);
 }
 
-/*
- * Pops the last pushed routine from the list
- *
- * This function is safe in the sense that it will free
- * allocated memory and return a list-based struct instead
- * so it gets freed automatically.
- */
-struct Routine *pop_routine(struct RoutineList *list) {
-    struct Routine *pointer;
-
-    pointer = list->root;
-
-    if (pointer == NULL) {
-        return NULL;
-    }
-    while (pointer->next != NULL) {
-        pointer = pointer->next;
-    }
-
-    return pointer;
+struct Routine *pop_routine(struct List *list) {
+    struct Node result = list_pop(list);
+    return result.data;
 }
 
-struct Routine *search_routine_by_name(struct RoutineList list, char *name) {
-    struct Routine *pointer = list.root;
+char *global_name = NULL;
 
-    while (pointer != NULL) {
-        if (strcmp(pointer->name, name) == 0) {
-            return pointer;
-        }
-        pointer = pointer->next;
+bool compare_routine(struct Node *node) {
+    return strcmp(((struct Routine *) node->data)->name, global_name) == 0;
+}
+
+struct Routine *search_routine_by_name(const struct List *list, char *name) {
+    global_name = name;
+    struct Node *node = search(list, &compare_routine);
+    if (node != NULL) {
+        global_name = NULL;
+        return (struct Routine *) node->data;
     }
+    global_name = NULL;
     return NULL;
 }
 
-int free_routines(struct RoutineList list) {
-    struct Routine *pointer = list.root;
-    while (pointer != NULL) {
-        struct Routine *temp;
-        temp = pointer->next;
-        free(pointer);
-        pointer = temp;
-    }
-    return 0;
+void free_routines(struct List *list) {
+    delete_list(list);
 }
