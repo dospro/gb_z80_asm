@@ -40,10 +40,21 @@ int main(int argc, char *argv[]) {
     char filename[128];
     FILE *asm_file, *gb_file;
 
+    struct CLISchema schema;
+    schema.modifiers_schemas = create_list();
+    strcpy(schema.name, "GB-z80-asm v3");
+    strcpy(schema.description, "Application for assembling gameboy roms from source");
+    add_command(&schema, "output", MODIFIER_VALUE, 'o', "output", "Specifies the output filename");
+    add_command(&schema, "mbc", MODIFIER_VALUE, 'm', "mbc", "Specifies cartridge type");
+    add_command(&schema, "rom_banks", MODIFIER_VALUE, 'r', "rom-banks", "Number of rom banks");
+    add_command(&schema, "ram_banks", MODIFIER_VALUE, 'a', "ram-banks", "Number of ram banks");
+    add_command(&schema, "color", MODIFIER, 'c', "color", "Specify gameboy color");
+
     printf("GB-z80 assembler v3 by dospro\n");
     printf("Web: https://github.com/dospro/gb_z80_asm\n");
     if (argc < 2) {
-        printf("gbz80_asm.exe <asm_file.asm>\n");
+        //printf("gbz80_asm.exe <asm_file.asm>\n");
+        print_help_text(&schema);
         exit(0);
     }
 

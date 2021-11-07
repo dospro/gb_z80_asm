@@ -32,6 +32,49 @@ struct Config {
     struct GBHeader gb_header;
 };
 
-struct Config parse_arguments(char **argv, int argc);
+enum CommandType {
+    MODIFIER,
+    MODIFIER_VALUE,
+    SHORT_MODIFIER,
+    TEXT_INPUT
+};
+
+struct ModifierSchema {
+    char name[32]; // Name of the command so we can get it's value by name
+    enum CommandType type; // What type of command we are expecting
+    char short_modifier; // Form of the short version of the modifier
+    char long_modifier[32]; // Form of the long version of the modifier.
+    char description[200];
+};
+
+struct CLISchema {
+    struct List modifiers_schemas;
+    char name[32];
+    char description[200];
+};
+
+struct Modifier {
+    char short_modifier;
+    char long_modifier[32];
+    char description[200];
+    char value[32];
+};
+
+struct CLI {
+    struct Modifier *modifiers;
+    char *positional_values[];
+};
+
+void add_command(
+        struct CLISchema *cli_schema,
+        const char *name,
+        enum CommandType type,
+        const char short_modifier,
+        const char *long_modifier,
+        const char *description
+);
+void print_help_text(struct CLISchema *schema);
+
+//struct Config parse_arguments(char **argv, int argc);
 
 #endif //GB_Z80_ASM_CLI_H
