@@ -66,34 +66,34 @@ struct Node list_pop(struct List *list) {
     return result;
 }
 
-void foreach(const struct List *list, void_func *funcp) {
+void foreach(const struct List *list, void_func *funcp, void *context) {
     for (struct Node *node = list->root_node; node != NULL; node = node->next) {
-        (*funcp)(node);
+        (*funcp)(node, context);
     }
 }
 
-struct List map(const struct List *list, func *funcp) {
+struct List map(const struct List *list, func *funcp, void *context) {
     struct List newList;
     for (struct Node *node = list->root_node; node != NULL; node = node->next) {
-        struct Node *mapped_node = (*funcp)(node);
+        struct Node *mapped_node = (*funcp)(node, context);
         list_push(&newList, mapped_node->data);
     }
     return newList;
 }
 
-struct List filter(const struct List *list, bool_func *funcp) {
+struct List filter(const struct List *list, bool_func *funcp, void *context) {
     struct List newList;
     for (struct Node *node = list->root_node; node != NULL; node = node->next) {
-        if ((*funcp)(node)) {
+        if ((*funcp)(node, context)) {
             list_push(&newList, node->data);
         }
     }
     return newList;
 }
 
-struct Node *search(const struct List *list, bool_func *funcp) {
+struct Node *search(const struct List *list, bool_func *funcp, void *context) {
     for (struct Node *node = list->root_node; node != NULL; node = node->next) {
-        if ((*funcp)(node)) {
+        if ((*funcp)(node, context)) {
             return node;
         }
     }

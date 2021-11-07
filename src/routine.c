@@ -19,20 +19,15 @@ struct Routine *pop_routine(struct List *list) {
     return result.data;
 }
 
-char *global_name = NULL;
-
-bool compare_routine(struct Node *node) {
-    return strcmp(((struct Routine *) node->data)->name, global_name) == 0;
+bool compare_routine(struct Node *node, void *context) {
+    return strcmp(((struct Routine *) node->data)->name, (char *)context) == 0;
 }
 
 struct Routine *search_routine_by_name(const struct List *list, char *name) {
-    global_name = name;
-    struct Node *node = search(list, &compare_routine);
+    struct Node *node = search(list, &compare_routine, name);
     if (node != NULL) {
-        global_name = NULL;
         return (struct Routine *) node->data;
     }
-    global_name = NULL;
     return NULL;
 }
 
