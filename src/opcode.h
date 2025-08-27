@@ -1,23 +1,34 @@
 #ifndef GB_Z80_ASM_OPCODE_H
 #define GB_Z80_ASM_OPCODE_H
+#include "string.h"
 
-#include <stdbool.h>
 
-struct Opcode {
+typedef struct OpcodeParts
+{
+    String name;
+    String arg1;
+    String arg2;
+} OpcodeParts;
+
+struct Opcode
+{
     char name[6];
     char arg_string[12];
     int value, high_value;
 };
 
-struct MachineCode {
+struct MachineCode
+{
     int opcode;
     int params_size;
     int params[3];
 };
 
-bool get_general_opcode(struct MachineCode *machine_code_out, char *opcode_name, char *arg1, char *arg2);
+bool get_general_opcode(struct MachineCode* machine_code_out, char* opcode_name, char* arg1, char* arg2);
 
-int search_opcode(char *opcode_name, char *arguments);
+int search_opcode(char* opcode_name, char* arguments);
+
+OpcodeParts split_line_new(const String line);
 
 
 #endif //GB_Z80_ASM_OPCODE_H

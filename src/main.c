@@ -8,8 +8,11 @@
 #include "routine.h"
 #include "jumps.h"
 #include "cli.h"
+#include "string.h"
 
 #define ENTRY_POINT 0x100
+
+
 
 
 int assemble(FILE *in, FILE *out);
@@ -88,41 +91,8 @@ int main(int argc, char *argv[]) {
     return 0;
 }
 
-/*
- * Creates a new string with all leading and trailing spaces removed
- * The string MUST be freed manually
- */
-char *strtrim(char *in_str) {
-    size_t len = strlen(in_str);
-    size_t start_index = 0;
-    while (isspace(in_str[start_index]) != 0 && start_index < len) {
-        ++start_index;
-    }
-    if (start_index == len) {
-        char *out = (char *) malloc(sizeof(char));
-        out[0] = 0;
-        return out;
-    }
-
-    size_t end_index = len - 1;
-    while (isspace(in_str[end_index]) != 0 && end_index > start_index) {
-        --end_index;
-    }
-    end_index++;
-
-    char *out = (char *) malloc(sizeof(char) * (end_index - start_index + 1));
-    size_t out_index = 0;
-    while (start_index < end_index) {
-        out[out_index] = in_str[start_index];
-        ++out_index;
-        ++start_index;
-    }
-    out[out_index] = 0;
-    return out;
-}
-
 int split_line(char *in_buffer, char *opcode_out, char *arg1_out, char *arg2_out) {
-    char delimiters[] = " ,\n\t";//This are used with strtok to separate the arguments
+    char delimiters[] = " ,\n\t"; // These are used with strtok to separate the arguments
     // Eliminate comments
     strtok(in_buffer, ";"); // Will place a 0 where the ; is
     char *token;
@@ -174,36 +144,41 @@ bool is_branch_opcode(char *opcode, char *arg) {
  */
 int assemble(FILE *in, FILE *out) {
     int line_counter = 0;
-    char buffer[512]; // Max number of characters per line
-    char opcode[64]; // This will have the opcode string(adc, ld, or, srl....)
-    char arg1[64]; // First argument(it should not even get bigger than 16)
-    char arg2[64]; // Second argument if there is
+    String opcode, arg1, arg2;
+
+    const StringBuffer source_text = StringBuffer_from_file(in);
+    StringIterator string_iterator = StringBuffer_create_iterator(&source_text);
+
+    // char opcode[64]; // This will have the opcode string(adc, ld, or, srl....)
+    // char arg1[64]; // First argument(it should not even get bigger than 16)
+    // char arg2[64]; // Second argument if there is
     struct List routines_list = create_list();
     struct List jumps_list = create_jumps_list();
 
     while (!feof(in)) {
-        memset(buffer, 0, sizeof(buffer));
-        memset(arg1, 0, sizeof(arg1));
-        memset(arg2, 0, sizeof(arg2));
-        memset(opcode, 0, sizeof(opcode));
+        // memset(buffer, 0, sizeof(buffer));
+        // memset(arg1, 0, sizeof(arg1));
+        // memset(arg2, 0, sizeof(arg2));
+        // memset(opcode, 0, sizeof(opcode));
 
-        fgets(buffer, 511, in);
-        char *clean_buffer = strtrim(buffer);
-        if (strlen(clean_buffer) == 0 || clean_buffer[0] == ';') {
-            free(clean_buffer);
+        String line = StringIterator_next_line(&string_iterator);
+
+        // fgets(string_buffer.data, 511, in);
+        String clean_line = string_trim(line);
+        if (string_is_empty(clean_line) || string_at(clean_line, 0) == ';') {
             ++line_counter;
             continue;
         }
-        split_line(clean_buffer, opcode, arg1, arg2);
-        free(clean_buffer);
-
-        /* now we have the two argument separated in different variables */
+        OpcodeParts opcode_parts = split_line_new(clean_line);
+        // split_line(clean_buffer, opcode, arg1, arg2);
+        // free(clean_buffer);
 
         //If we have a special instruction .include then we must include this.
-        if (strcmp(opcode, ".main") == 0) {
+        if (string_is_equal_cstr(opcode_parts.name, ".main")) {
+        // if (strcmp(opcode, ".main") == 0) {
             //If we find the option .main then the program starts there not in 0x150
             emit_entry_point(out);
-        } else if (strcmp(opcode, ".db") == 0) {
+        } else if (string_is_equal_cstr(opcode_parts.name, ".db")) {
             /* TODO: emit_raw_data(values, size) */
             //If we find a .db option then we write the byte as it is.
             //fputc(atoh(arg1), out);

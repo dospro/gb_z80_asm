@@ -1,4 +1,7 @@
 #include "opcode.h"
+
+#include <ctype.h>
+
 #include "parameter.h"
 #include <stdio.h>
 #include <string.h>
@@ -6,7 +9,7 @@
 struct Opcode opcode_table[];
 
 /**
- * Makes a search in the look up table and return the corresponding opcode number
+ * Makes a search in the look-up table and return the corresponding opcode number
  * @param opcode_name String with the opcode name
  * @param arguments String with the arguments
  * @return Opcode number
@@ -75,6 +78,46 @@ bool get_general_opcode(struct MachineCode *machine_code_out, char *opcode_name,
         }
     }
     return true;
+}
+
+/**
+ * The function takes a string and splits it using space and comma
+ * as separators.
+ *
+ * @param line String struct with the current opcode line.
+ * @return OpcodeParts struct
+ */
+OpcodeParts split_line_new(const String line)
+{
+    size_t pos = 0;
+    size_t size = 0;
+    while (!isspace(line.data[pos + size]) && size < line.size)
+    {
+        ++size;
+    }
+    const String opcode_name = {.data = &line.data[pos], .size = size};
+
+    pos = pos + size + 1;
+    size = 0;
+    while (pos + size < line.size && !isspace(line.data[pos + size]) && line.data[pos + size] != ',')
+    {
+        ++size;
+    }
+    const String arg1 = {.data = &line.data[pos], .size = size};
+    pos = pos + size + 1;
+    size = 0;
+
+    while (pos + size < line.size && !isspace(line.data[pos + size]) && line.data[pos + size] != ',')
+    {
+        ++size;
+    }
+    const String arg2 = {.data = &line.data[pos], .size = size};
+
+    return (OpcodeParts){
+        .name = opcode_name,
+        .arg1 = arg1,
+        .arg2 = arg2,
+    };
 }
 
 struct Opcode opcode_table[] = {
@@ -195,7 +238,7 @@ struct Opcode opcode_table[] = {
         {"jr",   "c,dir",      0x38},
         {"jr",   "dir",        0x18},
 
-        /*All this are the different ways of writing the opcode parameters*/
+        /*All these are the different ways of writing the opcode parameters*/
         /*The next opcodes mean the same*/
         {"ld",   "(ff00+c),a", 0xE2},
         {"ld",   "[ff00+c],a", 0xE2},
@@ -212,7 +255,7 @@ struct Opcode opcode_table[] = {
         {"ldi",  "[hl],a",     0x22},
         /*Ends*/
 
-        /*All this are the same*/
+        /*All these are the same*/
         {"ld",   "(hld),a",    0x32},
         {"ld",   "[hld],a",    0x32},
         {"ld",   "(hl-),a",    0x32},
@@ -240,7 +283,7 @@ struct Opcode opcode_table[] = {
         {"ldi",  "a,[hl]",     0x2a},
         /*Ends*/
 
-        /*All this are the same*/
+        /*All these are the same*/
         {"ld",   "a,(hld)",    0x3a},
         {"ld",   "a,[hld]",    0x3a},
         {"ld",   "a,(hl-)",    0x3a},
