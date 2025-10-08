@@ -42,7 +42,14 @@ MachineCode parse_opcode(const OpcodeParts opcode_parts, ErrorCode* error_code)
     }
     else if (string_is_empty(opcode_parts.arg2))
     {
-        StringBuffer_append_string(&buffer, opcode_parts.arg1);
+        if (string_is_equal_cstr(opcode_parts.arg1, "0x5"))
+        {
+            StringBuffer_append_cstr(&buffer, "*");
+        }
+        else
+        {
+            StringBuffer_append_string(&buffer, opcode_parts.arg1);
+        }
     }
     else if (string_is_empty(opcode_parts.arg1) && !string_is_empty(opcode_parts.arg2))
     {
@@ -65,7 +72,8 @@ MachineCode parse_opcode(const OpcodeParts opcode_parts, ErrorCode* error_code)
             if (string_is_equal_cstr(opcode_parts.arg1, "0x5"))
             {
                 return (MachineCode){.opcode = opcode_table[i].value, .params_size = 1, .params = {5}};
-            } else
+            }
+            else
             {
                 return (MachineCode){.opcode = opcode_table[i].value, .params_size = 0, .params = {0}};
             }
