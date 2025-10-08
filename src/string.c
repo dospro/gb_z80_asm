@@ -81,6 +81,36 @@ StringIterator StringBuffer_create_iterator(const StringBuffer* buffer)
     };
 }
 
+bool StringBuffer_append_cstr(StringBuffer* buffer, const char* const source)
+{
+    size_t source_size = 0;
+    while (source[source_size] != '\0')
+    {
+        source_size++;
+    }
+    const String string = {.data = source, .size = source_size};
+    return StringBuffer_append_string(buffer, string);
+}
+
+bool StringBuffer_append_string(StringBuffer* buffer, const String string)
+{
+    if (buffer->size + string.size > buffer->capacity)
+    {
+        const size_t new_capacity = buffer->capacity + string.size;
+        buffer->data = realloc(buffer->data, new_capacity * sizeof(char));
+        if (buffer->data == nullptr)
+        {
+            return false;
+        }
+        buffer->capacity = new_capacity;
+    }
+    for (size_t i = 0; i < string.size; i++)
+    {
+        buffer->data[buffer->size++] = string.data[i];
+    }
+    return true;
+}
+
 /* Starts String Iterator */
 
 String StringIterator_next_line(StringIterator* iterator)
@@ -273,7 +303,7 @@ String string_trim(const String str)
     };
 }
 
-void string_print(String self)
+void string_print(const String self)
 {
     for (size_t i = 0; i < self.size; i++)
     {
@@ -294,120 +324,19 @@ bool is_delimiter(const char c, const String delimiters)
     return false;
 }
 
-Vector string_split(const String str, const String pattern)
+bool string_contains_char(const String str, const char character)
 {
-    // Initialize the vector to store the split strings
-    Vector result = {.data = NULL, .size = 0};
-
-    // Return empty vector if input string is empty
-    if (string_is_empty(str))
-    {
-        return result;
-    }
-
-    // Count the number of substrings to allocate proper memory
-    size_t count = 1; // At least one substring
-    bool was_delimiter = true; // To handle leading delimiters
-
     for (size_t i = 0; i < str.size; i++)
     {
-        bool is_current_delimiter = is_delimiter(str.data[i], pattern);
-
-        // Count a new substring when transitioning from delimiter to non-delimiter
-        if (was_delimiter && !is_current_delimiter)
+        if (str.data[i] == character)
         {
-            count++;
-        }
-
-        was_delimiter = is_current_delimiter;
-    }
-
-    // Allocate memory for the array of String objects
-    result.data = malloc(count * sizeof(String));
-    if (result.data == NULL)
-    {
-        return result; // Return empty vector if allocation fails
-    }
-
-    // Initialize the array of String objects
-    String* strings = (String*)result.data;
-    result.size = 0;
-
-    // Process the input string to extract substrings
-    size_t start = 0;
-    bool in_substring = false;
-
-    for (size_t i = 0; i <= str.size; i++)
-    {
-        // Check if current character is a delimiter or we've reached the end
-        bool is_current_delimiter = (i == str.size) || is_delimiter(str.data[i], pattern);
-
-        if (!is_current_delimiter && !in_substring)
-        {
-            // Start of a new substring
-            start = i;
-            in_substring = true;
-        }
-        else if (is_current_delimiter && in_substring)
-        {
-            // End of a substring
-            size_t length = i - start;
-
-            // Create a new String object for this substring
-            strings[result.size] = (String){
-                .data = &str.data[start],
-                .size = length
-            };
-
-            result.size++;
-            in_substring = false;
+            return true;
         }
     }
-
-    return result;
+    return false;
 }
 
-//     String token = {.data=str.data };
-//
-//     for (size_t i = 0; i < result.size; i++)
-//     {
-//         for (size_t j = 0; j < pattern.size; j++)
-//         {
-//             if (str.data[i] == pattern.data[j])
-//             {
-//                 token.size = i;
-//             }
-//         }
-//     }
-//
-//     if (token.size != 0)
-//     {
-//         //printf("ERROR: Could not parse line: %s\n", in_buffer);
-//         return (String){};
-//     }
-//
-//
-//     char *token;
-//     //if (token != NULL)
-//     //    strcpy(in_buffer, token); // No, copy the new buffer without comments
-//     // Now lets separate the tokens
-//     token = strtok(in_buffer, delimiters); // Get the first argument
-//     if (token == NULL) {
-//         printf("ERROR: Could not parse line: %s\n", in_buffer);
-//         return -1;
-//     }
-//     strcpy(opcode_out, token);
-//     token = strtok(NULL, delimiters); // Get the second argument
-//     if (token == NULL) {
-//         strcpy(arg1_out, "-"); // No arguments
-//         strcpy(arg2_out, "");
-//         return 0;
-//     }
-//     strcpy(arg1_out, token);              // Copy the first argument
-//     token = strtok(NULL, delimiters); // Get the third argument
-//     if (token != NULL) {
-//         strcpy(arg2_out, token);
-//     }
-//
-//     return 0;
-// }
+String string_from_string_buffer(const StringBuffer buffer)
+{
+    return (String){.data = buffer.data, .size = buffer.size};
+}

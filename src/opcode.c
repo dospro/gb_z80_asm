@@ -1,10 +1,11 @@
-#include "opcode.h"
-
-#include <ctype.h>
-
-#include "parameter.h"
 #include <stdio.h>
 #include <string.h>
+#include <ctype.h>
+#include "opcode.h"
+
+#include <stdlib.h>
+
+#include "parameter.h"
 
 struct Opcode opcode_table[];
 
@@ -14,10 +15,13 @@ struct Opcode opcode_table[];
  * @param arguments String with the arguments
  * @return Opcode number
  */
-int search_opcode(char *opcode_name, char *arguments) {
-    for (int i = 0; i < 512; i++) {
+int search_opcode(char* opcode_name, char* arguments)
+{
+    for (int i = 0; i < 512; i++)
+    {
         if (strcmp(opcode_table[i].name, opcode_name) == 0)
-            if (strcmp(opcode_table[i].arg_string, arguments) == 0) {
+            if (strcmp(opcode_table[i].arg_string, arguments) == 0)
+            {
                 if (opcode_table[i].value == 0xCB)
                     return (opcode_table[i].value << 8) | (opcode_table[i].high_value);
                 else
@@ -25,6 +29,51 @@ int search_opcode(char *opcode_name, char *arguments) {
             }
     }
     return -1;
+}
+
+MachineCode parse_opcode(const OpcodeParts opcode_parts, ErrorCode* error_code)
+{
+    constexpr size_t table_size = 512;
+    *error_code = GBASM_CODE_OK;
+    StringBuffer buffer = StringBuffer_new(1, malloc);
+    if (string_is_empty(opcode_parts.arg1) && string_is_empty(opcode_parts.arg2))
+    {
+        StringBuffer_append_cstr(&buffer, "-");
+    }
+    else if (string_is_empty(opcode_parts.arg2))
+    {
+        StringBuffer_append_string(&buffer, opcode_parts.arg1);
+    }
+    else if (string_is_empty(opcode_parts.arg1) && !string_is_empty(opcode_parts.arg2))
+    {
+        StringBuffer_free(&buffer);
+        *error_code = GBASM_CODE_ERROR;
+        return (MachineCode){};
+    }
+    else
+    {
+        StringBuffer_append_string(&buffer, opcode_parts.arg1);
+        StringBuffer_append_cstr(&buffer, ",");
+        StringBuffer_append_string(&buffer, opcode_parts.arg2);
+    }
+    const String arg_string = string_from_string_buffer(buffer);
+    for (size_t i = 0; i < table_size; i++)
+    {
+        if (string_is_equal_cstr(opcode_parts.name, opcode_table[i].name) && string_is_equal_cstr(
+            arg_string, opcode_table[i].arg_string))
+        {
+            if (string_is_equal_cstr(opcode_parts.arg1, "0x5"))
+            {
+                return (MachineCode){.opcode = opcode_table[i].value, .params_size = 1, .params = {5}};
+            } else
+            {
+                return (MachineCode){.opcode = opcode_table[i].value, .params_size = 0, .params = {0}};
+            }
+        }
+    }
+    StringBuffer_free(&buffer);
+    *error_code = GBASM_CODE_ERROR;
+    return (MachineCode){};
 }
 
 bool get_general_opcode(struct MachineCode *machine_code_out, char *opcode_name, char *arg1, char *arg2) {

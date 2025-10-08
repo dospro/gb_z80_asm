@@ -1,6 +1,7 @@
 #ifndef GB_Z80_ASM_OPCODE_H
 #define GB_Z80_ASM_OPCODE_H
 #include "string.h"
+#include "error_handler.h"
 
 
 typedef struct OpcodeParts
@@ -23,6 +24,10 @@ struct MachineCode
     int params_size;
     int params[3];
 };
+
+typedef struct MachineCode MachineCode;
+
+MachineCode parse_opcode(const OpcodeParts opcode_parts, ErrorCode *error_code);
 
 bool get_general_opcode(struct MachineCode* machine_code_out, char* opcode_name, char* arg1, char* arg2);
 

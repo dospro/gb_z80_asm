@@ -7,6 +7,8 @@ void test_string_buffer_new_error(void** state);
 void test_string_buffer_read_file(void** state);
 void test_string_buffer_read_file_fails(void** state);
 void test_string_buffer_to_iterator(void** state);
+void test_string_buffer_append_c_string(void** state);
+void test_string_buffer_append_c_string_no_capacity(void** state);
 
 void test_string_buffer_to_iterator_bad_buffer(void** state);
 

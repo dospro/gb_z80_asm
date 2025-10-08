@@ -41,10 +41,13 @@ typedef struct
 } StringBuffer;
 
 StringBuffer StringBuffer_new(const size_t capacity, const allocator_callback allocator);
+void StringBuffer_free(StringBuffer* string_buffer);
 StringBuffer StringBuffer_from_cstr(const char* const source, const allocator_callback allocator);
 bool StringBuffer_is_ok(const StringBuffer *buffer);
 StringBuffer StringBuffer_from_file(FILE *__file);
 StringIterator StringBuffer_create_iterator(const StringBuffer *buffer);
+bool StringBuffer_append_cstr(StringBuffer *buffer, const char* const source);
+bool StringBuffer_append_string(StringBuffer* buffer, const String string);
 // String StringBuffer_to_string(const StringBuffer self);
 
 // StringIterator StringIterator_new(const String str);
@@ -63,5 +66,6 @@ int string_index(const char character);
 Vector string_split(const String str, const String pattern);
 bool string_contains_char(const String str, const char character);
 bool string_contains(const String str, const String pattern);
+String string_from_string_buffer(const StringBuffer buffer);
 
 #endif //STRING_H

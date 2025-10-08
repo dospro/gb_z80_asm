@@ -15,6 +15,8 @@ set(SOURCES
         src/cli.c
         src/string.c
         src/string.h
+        src/error_handler.c
+        src/error_handler.h
 )
 
 add_executable(gb_z80_asm ${SOURCES})

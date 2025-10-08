@@ -131,3 +131,37 @@ void test_string_buffer_to_iterator_bad_buffer(void** state)
     const StringIterator iterator = StringBuffer_create_iterator(&buffer);
     assert_false(StringIterator_is_ok(&iterator));
 }
+
+/**
+ * Test StringBuffer_append_cstr appends strings in a buffer of
+ * enough capacity.
+ *
+ * @param state Used by CMocka
+ */
+void test_string_buffer_append_c_string(void** state)
+{
+    StringBuffer buffer = StringBuffer_new(200, malloc);
+    StringBuffer_append_cstr(&buffer,"Hello");
+    StringBuffer_append_cstr(&buffer, " world");
+    assert_true(StringBuffer_is_ok(&buffer));
+    const String result = string_from_string_buffer(buffer);
+    assert_true(string_is_equal_cstr(result, "Hello world"));
+}
+
+/**
+ * Test StringBuffer_append_cstr appends strings in a buffer of
+ * with no capacity.
+ *
+ * The function should reallocate the memory without any side effect.
+ *
+ * @param state Used by CMocka
+ */
+void test_string_buffer_append_c_string_no_capacity(void** state)
+{
+    StringBuffer buffer = StringBuffer_new(5, malloc);
+    StringBuffer_append_cstr(&buffer,"Hello");
+    StringBuffer_append_cstr(&buffer, " world");
+    assert_true(StringBuffer_is_ok(&buffer));
+    const String result = string_from_string_buffer(buffer);
+    assert_true(string_is_equal_cstr(result, "Hello world"));
+}

@@ -13,6 +13,13 @@
 #define ENTRY_POINT 0x100
 
 
+struct AsmState
+{
+    struct Jump jumps;
+    struct Routine routines;
+    unsigned int current_line;
+
+};
 
 
 int assemble(FILE *in, FILE *out);
@@ -120,18 +127,28 @@ int split_line(char *in_buffer, char *opcode_out, char *arg1_out, char *arg2_out
     return 0;
 }
 
-bool is_conditional_flag(char *arg) {
-    if (strcmp(arg, "nz") == 0 || strcmp(arg, "z") == 0 || strcmp(arg, "nc") == 0 || strcmp(arg, "c") == 0) {
+bool is_conditional_flag(const String arg)
+{
+    if (string_is_equal_cstr(arg, "nz") ||
+        string_is_equal_cstr(arg, "z") ||
+        string_is_equal_cstr(arg, "nc") ||
+        string_is_equal_cstr(arg, "c"))
+    {
         return true;
     }
     return false;
 }
 
-bool is_branch_opcode(char *opcode, char *arg) {
-    if (strcmp(opcode, "call") == 0) {
+bool is_branch_opcode(const OpcodeParts opcode_parts)
+{
+    if (string_is_equal_cstr(opcode_parts.name, "call"))
+    {
         return true;
     }
-    if (strcmp(opcode, "jp") == 0 && strcmp(arg, "(hl)") != 0 && strcmp(arg, "[hl]") != 0) {
+    if (string_is_equal_cstr(opcode_parts.name, "jp") &&
+        !string_is_equal_cstr(opcode_parts.arg1, "(hl)") &&
+        !string_is_equal_cstr(opcode_parts.arg1, "[hl]"))
+    {
         return true;
     }
     return false;
@@ -144,34 +161,23 @@ bool is_branch_opcode(char *opcode, char *arg) {
  */
 int assemble(FILE *in, FILE *out) {
     int line_counter = 0;
-    String opcode, arg1, arg2;
 
     const StringBuffer source_text = StringBuffer_from_file(in);
     StringIterator string_iterator = StringBuffer_create_iterator(&source_text);
 
-    // char opcode[64]; // This will have the opcode string(adc, ld, or, srl....)
-    // char arg1[64]; // First argument(it should not even get bigger than 16)
-    // char arg2[64]; // Second argument if there is
     struct List routines_list = create_list();
     struct List jumps_list = create_jumps_list();
 
     while (!feof(in)) {
-        // memset(buffer, 0, sizeof(buffer));
-        // memset(arg1, 0, sizeof(arg1));
-        // memset(arg2, 0, sizeof(arg2));
-        // memset(opcode, 0, sizeof(opcode));
 
-        String line = StringIterator_next_line(&string_iterator);
+        const String line = StringIterator_next_line(&string_iterator);
+        const String clean_line = string_trim(line);
 
-        // fgets(string_buffer.data, 511, in);
-        String clean_line = string_trim(line);
         if (string_is_empty(clean_line) || string_at(clean_line, 0) == ';') {
             ++line_counter;
             continue;
         }
-        OpcodeParts opcode_parts = split_line_new(clean_line);
-        // split_line(clean_buffer, opcode, arg1, arg2);
-        // free(clean_buffer);
+        const OpcodeParts opcode_parts = split_line_new(clean_line);
 
         //If we have a special instruction .include then we must include this.
         if (string_is_equal_cstr(opcode_parts.name, ".main")) {
@@ -183,27 +189,30 @@ int assemble(FILE *in, FILE *out) {
             //If we find a .db option then we write the byte as it is.
             //fputc(atoh(arg1), out);
             printf("Not implemented yet\n");
-        } else if (strchr(opcode, ':') != NULL) {
-            // If there is a : in the opcode, then its a routine
+        } else if (string_contains_char(opcode_parts.name, ':')) {
+            // If there is a : in the opcode, then it's a routine
             /* TODO: we can have a name and an opcode in the same line */
-            add_routine(&routines_list, opcode, ftell(out));
-        } else if (is_branch_opcode(opcode, arg1) == true) {
+            unsigned long routine_address = ftell(out);
+            add_routine(&asm_state, opcode_parts.name, routine_address);
+            // add_routine(&routines_list, opcode, ftell(out));
+        } else if (is_branch_opcode(opcode_parts)) {
             /* If we get a call or a jp then there is a routine name
              * We must take this routine name and keep it so at the end
              * we will put the right address
              */
-            char routine_name[64];
-            char argument[64];
-            if (is_conditional_flag(arg1) == true) {
-                strcpy(routine_name, arg2);
-                strcpy(argument, arg1);
-                strcat(argument, ",dir");
-            } else {
-                strcpy(routine_name, arg1);
-                strcpy(argument, "dir");
-            }
-            /* ftell(out) + 1 is the position where we will fill the real routine address */
-            add_jump(&jumps_list, routine_name, ftell(out) + 1, 0, 16);
+            // char routine_name[64];
+            // char argument[64];
+            // if (is_conditional_flag(opcode_parts.arg1)) {
+            //     strcpy(routine_name, arg2);
+            //     strcpy(argument, arg1);
+            //     strcat(argument, ",dir");
+            // } else {
+            //     strcpy(routine_name, arg1);
+            //     strcpy(argument, "dir");
+            // }
+            // /* ftell(out) + 1 is the position where we will fill the real routine address */
+            // add_jump(&jumps_list, routine_name, ftell(out) + 1, 0, 16);
+            add_jump(&asm_state, opcode_parts, ftell(out) + 1, 0, 16);
 
             struct MachineCode code;
             if ((code.opcode = search_opcode(opcode, argument)) == -1) {

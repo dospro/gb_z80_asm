@@ -132,6 +132,8 @@ int main(int argc, char** argv)
         cmocka_unit_test(test_string_buffer_read_file_fails),
         cmocka_unit_test(test_string_buffer_to_iterator),
         cmocka_unit_test(test_string_buffer_to_iterator_bad_buffer),
+        cmocka_unit_test(test_string_buffer_append_c_string),
+        cmocka_unit_test(test_string_buffer_append_c_string_no_capacity),
         cmocka_unit_test(test_string_iterator_next_line),
         cmocka_unit_test(test_string_iterator_next_line_all),
         cmocka_unit_test(test_string_iterator_next_line_ignore_multiple_new_lines),
@@ -149,6 +151,14 @@ int main(int argc, char** argv)
         cmocka_unit_test(test_split_line_gets_arg2),
         cmocka_unit_test(test_split_line_gets_single_arg),
         cmocka_unit_test(test_split_line_complex_opcode),
+        cmocka_unit_test(test_string_contains_char_false),
+        cmocka_unit_test(test_string_contains_char_true),
+        cmocka_unit_test(test_string_from_string_buffer),
+        cmocka_unit_test(test_parse_opcode_simple),
+        cmocka_unit_test(test_parse_opcode_no_params),
+        cmocka_unit_test(test_parse_opcode_single_param),
+        cmocka_unit_test(test_parse_opcode_single_variable),
+        cmocka_unit_test(test_search_opcode),
 
     };
 
