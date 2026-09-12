@@ -45,7 +45,7 @@ StringBuffer StringBuffer_from_cstr(const char* const source, const allocator_ca
 
 bool StringBuffer_is_ok(const StringBuffer* buffer)
 {
-    if (buffer->data == NULL)
+    if (buffer->data == nullptr)
     {
         return false;
     }

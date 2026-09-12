@@ -7,16 +7,16 @@ include(c_tests/CMakeLists.txt)
 
 set(SOURCES
         src/main.c
-        src/routine.c
-        src/jumps.c
         src/parameter.c
         src/opcode.c
         src/list.c
         src/cli.c
         src/string.c
-        src/string.h
         src/error_handler.c
-        src/error_handler.h
+        src/symbol.c
+        src/tokenizer.c
+        src/tokenizer.h
+        src/fixups.c
 )
 
 add_executable(gb_z80_asm ${SOURCES})

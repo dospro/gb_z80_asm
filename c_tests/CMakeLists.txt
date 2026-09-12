@@ -13,11 +13,15 @@ add_executable(c_tests
         src/string.c
         src/opcode.c
         src/parameter.c
+        src/symbol.c
+        src/tokenizer.c
         c_tests/main.c
         c_tests/string_tests.c
         c_tests/string_buffer_tests.c
         c_tests/string_iterator_tests.c
         c_tests/opcode_tests.c
-        c_tests/opcode_tests.h)
+        c_tests/symbol_tests.c
+        c_tests/tokenizer_tests.c
+        c_tests/fixups_tests.c)
 target_link_libraries(c_tests cmocka)
 add_test(NAME c_tests COMMAND c_tests)

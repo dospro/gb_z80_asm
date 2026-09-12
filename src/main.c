@@ -3,26 +3,37 @@
 #include <string.h>
 #include <stdbool.h>
 #include <ctype.h>
+#include <stdint.h>
 #include "opcode.h"
 #include "list.h"
 #include "routine.h"
 #include "jumps.h"
 #include "cli.h"
 #include "string.h"
+#include "symbol.h"
+#include "tokenizer.h"
 
 #define ENTRY_POINT 0x100
 
-
-struct AsmState
+static constexpr size_t MAX_BANKS = 256;
+typedef struct Assembler Assembler;
+struct Assembler
 {
-    struct Jump jumps;
-    struct Routine routines;
-    unsigned int current_line;
+    /** Rom image being build: MAX_BANKS of 0x4000 bytes each. */
+    uint8_t rom[MAX_BANKS][0x4000];
+    unsigned int bank_count; // Number of banks actually bein used.
 
+    unsigned int current_bank;
+    unsigned int current_offset;
+
+    unsigned int current_line;
+    bool has_entry_point;
+
+    SymbolTable symbol_table;
 };
 
 
-int assemble(FILE *in, FILE *out);
+void assemble(Assembler* assembler, StringBuffer source_code, ErrorCode *err);
 void emit_machine_code(FILE *file, struct MachineCode *code);
 void emit_entry_point(FILE *file);
 
@@ -49,6 +60,7 @@ void emit_header(FILE *file, struct GBHeader *header) {
 int main(int argc, char *argv[]) {
     char filename[128];
     FILE *asm_file, *gb_file;
+    static Assembler state = {};
 
     struct CLISchema schema;
     schema.modifiers_schemas = create_list();
@@ -90,7 +102,7 @@ int main(int argc, char *argv[]) {
     emit_header(gb_file, NULL);
     printf("Assembling...\n");
 
-    assemble(asm_file, gb_file);
+    assemble(&state, );
 
     fclose(asm_file);
     fclose(gb_file);
@@ -139,7 +151,7 @@ bool is_conditional_flag(const String arg)
     return false;
 }
 
-bool is_branch_opcode(const OpcodeParts opcode_parts)
+bool is_branch_opcode(const OpcodeTextParts opcode_parts)
 {
     if (string_is_equal_cstr(opcode_parts.name, "call"))
     {
@@ -159,61 +171,61 @@ bool is_branch_opcode(const OpcodeParts opcode_parts)
  *
  * It also handles routine names and special instructions
  */
-int assemble(FILE *in, FILE *out) {
-    int line_counter = 0;
+void assemble(Assembler* assembler, const StringBuffer source_code, ErrorCode *err) {
 
-    const StringBuffer source_text = StringBuffer_from_file(in);
-    StringIterator string_iterator = StringBuffer_create_iterator(&source_text);
+    assembler->symbol_table = SymbolTable_new(100);
+    assembler->current_line = 0;
+    assembler->current_bank = 0;
+    assembler->current_offset = 0x150;
 
-    struct List routines_list = create_list();
-    struct List jumps_list = create_jumps_list();
+    StringIterator string_iterator = StringBuffer_create_iterator(&source_code);
 
-    while (!feof(in)) {
+    while (StringIterator_is_ok(&string_iterator)) {
 
         const String line = StringIterator_next_line(&string_iterator);
         const String clean_line = string_trim(line);
 
         if (string_is_empty(clean_line) || string_at(clean_line, 0) == ';') {
-            ++line_counter;
+            assembler->current_line++;
             continue;
         }
-        const OpcodeParts opcode_parts = split_line_new(clean_line);
+        Tokenizer tokenizer = tokenizer_new(clean_line);
+        const Token first_token = tokenizer_next(&tokenizer);
 
-        //If we have a special instruction .include then we must include this.
-        if (string_is_equal_cstr(opcode_parts.name, ".main")) {
-        // if (strcmp(opcode, ".main") == 0) {
+
+        if (string_is_equal_cstr(first_token.text, ".main"))
+        {
             //If we find the option .main then the program starts there not in 0x150
-            emit_entry_point(out);
-        } else if (string_is_equal_cstr(opcode_parts.name, ".db")) {
-            /* TODO: emit_raw_data(values, size) */
-            //If we find a .db option then we write the byte as it is.
-            //fputc(atoh(arg1), out);
-            printf("Not implemented yet\n");
-        } else if (string_contains_char(opcode_parts.name, ':')) {
-            // If there is a : in the opcode, then it's a routine
-            /* TODO: we can have a name and an opcode in the same line */
-            unsigned long routine_address = ftell(out);
-            add_routine(&asm_state, opcode_parts.name, routine_address);
-            // add_routine(&routines_list, opcode, ftell(out));
-        } else if (is_branch_opcode(opcode_parts)) {
-            /* If we get a call or a jp then there is a routine name
-             * We must take this routine name and keep it so at the end
-             * we will put the right address
-             */
-            // char routine_name[64];
-            // char argument[64];
-            // if (is_conditional_flag(opcode_parts.arg1)) {
-            //     strcpy(routine_name, arg2);
-            //     strcpy(argument, arg1);
-            //     strcat(argument, ",dir");
-            // } else {
-            //     strcpy(routine_name, arg1);
-            //     strcpy(argument, "dir");
-            // }
-            // /* ftell(out) + 1 is the position where we will fill the real routine address */
-            // add_jump(&jumps_list, routine_name, ftell(out) + 1, 0, 16);
-            add_jump(&asm_state, opcode_parts, ftell(out) + 1, 0, 16);
-
+            if (assembler->has_entry_point)
+            {
+                *err = GBASM_ERR_DUPLICATE_MAIN;
+                return;
+            }
+            if (assembler->current_bank != 0)
+            {
+                *err = GBASM_ERR_MAIN_BANK_UNREACHABLE;
+                return;
+            }
+            const unsigned int target = assembler->current_offset;
+            assembler->rom[0][0x100] = 0xC3; // jp nn
+            assembler->rom[0][0x101] = target & 0xFF; // low byte
+            assembler->rom[0][0x102] = (target >> 8) & 0xFF; // high byte
+            assembler->has_entry_point = true;
+        }
+        else if (string_contains_char(first_token.text, ':'))
+        {
+            // If there is an ":" in the opcode, then it's a routine
+            const auto symbol = (Symbol){
+                .name = first_token.text,
+                .address = assembler->current_offset,
+                .definition_line = assembler->current_line,
+            };
+            SymbolTable_add_symbol(&assembler->symbol_table, symbol);
+        }
+        else if (string_is_equal_cstr(first_token.text, "jp") ||
+            string_is_equal_cstr(first_token.text, "jr") ||
+            string_is_equal_cstr(first_token.text, "call"))
+        {
             struct MachineCode code;
             if ((code.opcode = search_opcode(opcode, argument)) == -1) {
                 printf("ERROR: Line %d. opcode: %s with arguments %s has an error\n", line_counter, opcode, argument);

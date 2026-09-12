@@ -3,36 +3,31 @@
 #include <stddef.h>
 #include <stdio.h>
 
-typedef struct
-{
-    void* data;
-    size_t size;
-} Vector;
 
-typedef struct
-{
-    void* data;
-    size_t next_free_space;
-    size_t size;
-} MemoryBuffer;
-
-void* allocate(MemoryBuffer* buffer, size_t size);
+// typedef struct
+// {
+//     void* data;
+//     size_t next_free_space;
+//     size_t size;
+// } MemoryBuffer;
+//
+// void* allocate(MemoryBuffer* buffer, size_t size);
 
 typedef void*(*allocator_callback)(size_t size);
 
-typedef struct
+typedef struct String
 {
     char* data;
     size_t size;
 } String;
 
-typedef struct
+typedef struct StringIterator
 {
     String source;
     size_t position;
 } StringIterator;
 
-typedef struct
+typedef struct StringBuffer
 {
     char* data;
     size_t size;
@@ -63,7 +58,7 @@ bool string_is_equal(const String str1, const String str2);
 bool string_is_equal_cstr(const String str1, const char *str2);
 char string_at(const String str, const size_t index);
 int string_index(const char character);
-Vector string_split(const String str, const String pattern);
+// Vector string_split(const String str, const String pattern);
 bool string_contains_char(const String str, const char character);
 bool string_contains(const String str, const String pattern);
 String string_from_string_buffer(const StringBuffer buffer);

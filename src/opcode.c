@@ -31,18 +31,157 @@ int search_opcode(char* opcode_name, char* arguments)
     return -1;
 }
 
-MachineCode parse_opcode(const OpcodeParts opcode_parts, ErrorCode* error_code)
+/**
+ * Parses a hexadecimal number from a String argument.
+ * Supports both "$" and "0x" prefixes.
+ * @param operand_string The string argument to parse
+ * @param error_code Output error code
+ * @return Parameter containing the parsed value and type
+ */
+Operand parse_operand(const String operand_string, ErrorCode* error_code)
+{
+    *error_code = GBASM_CODE_OK;
+    int state = 0;
+    size_t index = 0;
+    int parsed_value = 0;
+    bool parse_successful = false;
+    bool continue_parsing = true;
+
+    while (index < operand_string.size && continue_parsing)
+    {
+        const char current_char = string_at(operand_string, index);
+
+        switch (state)
+        {
+            case 0:
+                if (current_char == '0')
+                {
+                    state = 1;
+                    index++;
+                }
+                else if (current_char == '$')
+                {
+                    state = 2;
+                    index++;
+                }
+                else
+                {
+                    continue_parsing = false;
+                }
+                break;
+
+            case 1:
+                if (current_char == 'x' || current_char == 'X')
+                {
+                    state = 2;
+                    index++;
+                }
+                else
+                {
+                    continue_parsing = false;
+                }
+                break;
+
+            case 2:
+                if (isxdigit(current_char))
+                {
+                    int digit_value = 0;
+                    if (current_char >= '0' && current_char <= '9')
+                    {
+                        digit_value = current_char - '0';
+                    }
+                    else if (current_char >= 'a' && current_char <= 'f')
+                    {
+                        digit_value = current_char - 'a' + 10;
+                    }
+                    else if (current_char >= 'A' && current_char <= 'F')
+                    {
+                        digit_value = current_char - 'A' + 10;
+                    }
+                    parsed_value = digit_value;
+                    state = 3;
+                    index++;
+                }
+                else
+                {
+                    continue_parsing = false;
+                }
+                break;
+
+            case 3:
+                if (isxdigit(current_char))
+                {
+                    int digit_value = 0;
+                    if (current_char >= '0' && current_char <= '9')
+                    {
+                        digit_value = current_char - '0';
+                    }
+                    else if (current_char >= 'a' && current_char <= 'f')
+                    {
+                        digit_value = current_char - 'a' + 10;
+                    }
+                    else if (current_char >= 'A' && current_char <= 'F')
+                    {
+                        digit_value = current_char - 'A' + 10;
+                    }
+                    parsed_value = (parsed_value << 4) | digit_value;
+                    index++;
+                }
+                else
+                {
+                    parse_successful = true;
+                    continue_parsing = false;
+                }
+                break;
+        }
+    }
+
+    if (state == 3)
+    {
+        parse_successful = true;
+    }
+
+    if (!parse_successful)
+    {
+        *error_code = GBASM_CODE_ERROR;
+        return (Operand){};
+    }
+
+    return (Operand){
+        .value = parsed_value,
+        .type = BYTE
+    };
+}
+
+/**
+ * @brief Parse an assembly opcode line into its machine code representation.
+ *
+ * Looks up the opcode name and arguments in the opcode table and produces
+ * the corresponding machine code bytes, including any immediate operands.
+ *
+ * @param[in]  opcode_parts  The opcode mnemonic and up to two arguments.
+ * @param[out] error_code    Set to GBASM_CODE_OK on success or GBASM_CODE_ERROR on failure.
+ * @return The resulting MachineCode with the opcode value and parsed operand bytes.
+ *         Returns a zero-initialized MachineCode on error.
+ */
+MachineCode parse_opcode(const OpcodeTextParts opcode_parts, ErrorCode* error_code)
 {
     constexpr size_t table_size = 512;
     *error_code = GBASM_CODE_OK;
     StringBuffer buffer = StringBuffer_new(1, malloc);
+    Operand operand = {}, operand2 = {};
     if (string_is_empty(opcode_parts.arg1) && string_is_empty(opcode_parts.arg2))
     {
         StringBuffer_append_cstr(&buffer, "-");
     }
     else if (string_is_empty(opcode_parts.arg2))
     {
-        if (string_is_equal_cstr(opcode_parts.arg1, "0x5"))
+        // When the second operand is empty, then we just need to parse the first operand.
+        ErrorCode parse_error;
+        operand = parse_operand(opcode_parts.arg1, &parse_error);
+
+        // TODO: Not the best detection logic here.
+        if (parse_error == GBASM_CODE_OK)
         {
             StringBuffer_append_cstr(&buffer, "*");
         }
@@ -53,28 +192,48 @@ MachineCode parse_opcode(const OpcodeParts opcode_parts, ErrorCode* error_code)
     }
     else if (string_is_empty(opcode_parts.arg1) && !string_is_empty(opcode_parts.arg2))
     {
+        // When the first operand is empty, we cannot have a second operand.
         StringBuffer_free(&buffer);
         *error_code = GBASM_CODE_ERROR;
         return (MachineCode){};
     }
     else
     {
+        // In this case, both operands are non-empty, so we need to parse both.
         StringBuffer_append_string(&buffer, opcode_parts.arg1);
         StringBuffer_append_cstr(&buffer, ",");
-        StringBuffer_append_string(&buffer, opcode_parts.arg2);
+        ErrorCode parse_error;
+        operand2 = parse_operand(opcode_parts.arg2, &parse_error);
+        if (parse_error == GBASM_CODE_OK)
+        {
+            StringBuffer_append_cstr(&buffer, "*");
+        }
+        else
+        {
+            StringBuffer_append_string(&buffer, opcode_parts.arg2);
+        }
     }
+
+    // Let's do the lookout
     const String arg_string = string_from_string_buffer(buffer);
     for (size_t i = 0; i < table_size; i++)
     {
-        if (string_is_equal_cstr(opcode_parts.name, opcode_table[i].name) && string_is_equal_cstr(
-            arg_string, opcode_table[i].arg_string))
+        if (string_is_equal_cstr(opcode_parts.name, opcode_table[i].name) &&
+            string_is_equal_cstr(arg_string, opcode_table[i].arg_string))
         {
-            if (string_is_equal_cstr(opcode_parts.arg1, "0x5"))
+            if (operand.type == BYTE)
             {
-                return (MachineCode){.opcode = opcode_table[i].value, .params_size = 1, .params = {5}};
+                StringBuffer_free(&buffer);
+                return (MachineCode){.opcode = opcode_table[i].value, .params_size = 1, .params = {operand.value}};
+            }
+            else if (operand2.type == BYTE)
+            {
+                StringBuffer_free(&buffer);
+                return (MachineCode){.opcode = opcode_table[i].value, .params_size = 1, .params = {operand2.value}};
             }
             else
             {
+                StringBuffer_free(&buffer);
                 return (MachineCode){.opcode = opcode_table[i].value, .params_size = 0, .params = {0}};
             }
         }
@@ -85,7 +244,7 @@ MachineCode parse_opcode(const OpcodeParts opcode_parts, ErrorCode* error_code)
 }
 
 bool get_general_opcode(struct MachineCode *machine_code_out, char *opcode_name, char *arg1, char *arg2) {
-    struct Arguments arguments;
+    OpcodeOperands arguments;
     if(scan_arguments(&arguments, arg1, arg2) == false) {
         return false;
     }
@@ -137,47 +296,82 @@ bool get_general_opcode(struct MachineCode *machine_code_out, char *opcode_name,
     return true;
 }
 
+
 /**
- * The function takes a string and splits it using space and comma
- * as separators.
+ * Advances *pos past any leading whitespace in line.
  *
- * @param line String struct with the current opcode line.
- * @return OpcodeParts struct
+ * @param line The string to scan.
+ * @param pos  Pointer to the current position; updated in place.
  */
-OpcodeParts split_line_new(const String line)
+static void skip_spaces(const String line, size_t* pos)
+{
+    while (*pos < line.size && isspace((unsigned char)line.data[*pos]))
+    {
+        ++(*pos);
+    }
+}
+
+/**
+ * Reads the next token from line starting at *pos, stopping at a
+ * space, comma, or end of string. Returns a String view into line
+ * and advances *pos past the token.
+ *
+ * @param line The string to read from.
+ * @param pos  Pointer to the current position; updated past the token.
+ * @return A String view of the extracted token (empty if *pos is at end).
+ */
+static String read_token(const String line, size_t* const pos)
+{
+    const size_t start = *pos;
+    while (*pos < line.size && !isspace((unsigned char)line.data[*pos]) && line.data[*pos] != ',')
+    {
+        ++(*pos);
+    }
+    return (String){.data = &line.data[start], .size = (*pos) - start};
+}
+
+/**
+ * Splits an assembly line into its component parts: opcode name,
+ * first operand, and second operand. Uses spaces and commas as
+ * delimiters. The returned strings are views into the original line.
+ *
+ * @param line       The raw assembly line to parse (e.g. "ld a, b").
+ * @param error_code Output parameter for any parsing errors.
+ * @return           OpcodeTextParts with name, arg1, and arg2 fields.
+ */
+OpcodeTextParts split_line_new(const String line, ErrorCode *error_code)
 {
     size_t pos = 0;
-    size_t size = 0;
-    while (!isspace(line.data[pos + size]) && size < line.size)
-    {
-        ++size;
-    }
-    const String opcode_name = {.data = &line.data[pos], .size = size};
+    *error_code = GBASM_CODE_OK;
 
-    pos = pos + size + 1;
-    size = 0;
-    while (pos + size < line.size && !isspace(line.data[pos + size]) && line.data[pos + size] != ',')
-    {
-        ++size;
-    }
-    const String arg1 = {.data = &line.data[pos], .size = size};
-    pos = pos + size + 1;
-    size = 0;
+    const String opcode_name = read_token(line, &pos);
+    skip_spaces(line, &pos);
 
-    while (pos + size < line.size && !isspace(line.data[pos + size]) && line.data[pos + size] != ',')
-    {
-        ++size;
-    }
-    const String arg2 = {.data = &line.data[pos], .size = size};
+    const String arg1 = read_token(line, &pos);
 
-    return (OpcodeParts){
+    // Let's skip the comma character
+    if (pos < line.size && line.data[pos] == ',')
+    {
+        ++pos;
+    }
+    skip_spaces(line, &pos);
+    const String arg2 = read_token(line, &pos);
+
+    // Is there more text?
+    skip_spaces(line, &pos);
+    if (pos < line.size)
+    {
+        *error_code = GBASM_ERR_MALFORMED_LINE;
+    }
+
+    return (OpcodeTextParts){
         .name = opcode_name,
         .arg1 = arg1,
         .arg2 = arg2,
     };
 }
 
-struct Opcode opcode_table[] = {
+Opcode opcode_table[] = {
         {"adc",  "a,a",        0x8F, 0},/*Add with carry*/
         {"adc",  "a,b",        0x88, 0},
         {"adc",  "a,c",        0x89, 0},

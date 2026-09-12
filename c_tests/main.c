@@ -3,124 +3,13 @@
 #include <stddef.h>
 #include <setjmp.h>
 #include <cmocka.h>
-#include <string.h>
 
-#include "../src/string.h"
 #include "string_tests.h"
 #include "string_buffer_tests.h"
 #include "string_iterator_tests.h"
 #include "opcode_tests.h"
-
-
-// void test_string_split(void** state)
-// {
-//     const char* code = "add a,b";
-//     const String info = {.data = code, .size = strlen(code)};
-//     const String expected[] = {
-//         {.data = "add", .size = 3},
-//         {.data = "a", .size = 1},
-//         {.data = "b", .size = 1}
-//     };
-//     StringIterator iterator = StringIterator_new(info);
-//     const String first = StringIterator_next(&iterator);
-//     const String second = StringIterator_next(&iterator);
-//     const String third = StringIterator_next(&iterator);
-//     const String fourth = StringIterator_next(&iterator);
-//     assert_int_equal(first.size, expected[0].size);
-//     assert_int_equal(second.size, expected[1].size);
-//     assert_int_equal(third.size, expected[2].size);
-//     assert_int_equal(fourth.size, 0);
-//
-//     for (size_t i = 0; i < first.size; i++)
-//     {
-//         assert_true(first.data[i] == expected[0].data[i]);
-//     }
-//
-//     for (size_t i = 0; i < second.size; i++)
-//     {
-//         assert_true(second.data[i] == expected[1].data[i]);
-//     }
-//
-//     for (size_t i = 0; i < third.size; i++)
-//     {
-//         assert_true(third.data[i] == expected[2].data[i]);
-//     }
-// }
-//
-//
-// void test_string_split_function(void** state)
-// {
-//     // Test case 1: Basic split with spaces
-//     {
-//         const char* text = "hello world test";
-//         const char* delimiters = " ";
-//         const String str = {.data = (char*)text, .size = strlen(text)};
-//         const String pattern = {.data = (char*)delimiters, .size = strlen(delimiters)};
-//
-//         Vector result = string_split(str, pattern);
-//         String* strings = (String*)result.data;
-//
-//         // Verify we have 3 substrings
-//         assert_int_equal(result.size, 3);
-//
-//         // Verify each substring
-//         assert_int_equal(strings[0].size, 5); // "hello"
-//         assert_memory_equal(strings[0].data, "hello", 5);
-//
-//         assert_int_equal(strings[1].size, 5); // "world"
-//         assert_memory_equal(strings[1].data, "world", 5);
-//
-//         assert_int_equal(strings[2].size, 4); // "test"
-//         assert_memory_equal(strings[2].data, "test", 4);
-//
-//         // Free allocated memory
-//         free(result.data);
-//     }
-//
-//     // Test case 2: Multiple delimiters
-//     {
-//         const char* text = "a,b;c:d";
-//         const char* delimiters = ",;:";
-//         const String str = {.data = (char*)text, .size = strlen(text)};
-//         const String pattern = {.data = (char*)delimiters, .size = strlen(delimiters)};
-//
-//         Vector result = string_split(str, pattern);
-//         String* strings = (String*)result.data;
-//
-//         // Verify we have 4 substrings
-//         assert_int_equal(result.size, 4);
-//
-//         // Verify each substring
-//         assert_int_equal(strings[0].size, 1); // "a"
-//         assert_memory_equal(strings[0].data, "a", 1);
-//
-//         assert_int_equal(strings[1].size, 1); // "b"
-//         assert_memory_equal(strings[1].data, "b", 1);
-//
-//         assert_int_equal(strings[2].size, 1); // "c"
-//         assert_memory_equal(strings[2].data, "c", 1);
-//
-//         assert_int_equal(strings[3].size, 1); // "d"
-//         assert_memory_equal(strings[3].data, "d", 1);
-//
-//         // Free allocated memory
-//         free(result.data);
-//     }
-//
-//     // Test case 3: Empty string
-//     {
-//         const char* text = "";
-//         const char* delimiters = " ";
-//         const String str = {.data = (char*)text, .size = 0};
-//         const String pattern = {.data = (char*)delimiters, .size = strlen(delimiters)};
-//
-//         Vector result = string_split(str, pattern);
-//
-//         // Verify we have 0 substrings
-//         assert_int_equal(result.size, 0);
-//         assert_null(result.data);
-//     }
-// }
+#include "symbol_tests.h"
+#include "tokenizer_tests.h"
 
 int main(int argc, char** argv)
 {
@@ -151,14 +40,33 @@ int main(int argc, char** argv)
         cmocka_unit_test(test_split_line_gets_arg2),
         cmocka_unit_test(test_split_line_gets_single_arg),
         cmocka_unit_test(test_split_line_complex_opcode),
+        cmocka_unit_test(test_split_line_spaces_between_operands),
+        cmocka_unit_test(test_split_line_invalid_parameters),
+        cmocka_unit_test(test_split_line_bad_commas),
         cmocka_unit_test(test_string_contains_char_false),
         cmocka_unit_test(test_string_contains_char_true),
         cmocka_unit_test(test_string_from_string_buffer),
         cmocka_unit_test(test_parse_opcode_simple),
-        cmocka_unit_test(test_parse_opcode_no_params),
-        cmocka_unit_test(test_parse_opcode_single_param),
-        cmocka_unit_test(test_parse_opcode_single_variable),
+        cmocka_unit_test(test_parse_opcode_no_operands),
+        cmocka_unit_test(test_parse_opcode_single_operand),
+        cmocka_unit_test(test_parse_opcode_single_variable_operand),
+        cmocka_unit_test(test_parse_opcode_two_operands),
+        cmocka_unit_test(test_parse_opcode_second_param_variable),
         cmocka_unit_test(test_search_opcode),
+        cmocka_unit_test(test_symbol_table_new_creates_empty_table),
+        cmocka_unit_test(test_symbol_table_new_rejects_overflowing_capacity),
+        cmocka_unit_test(test_symbol_table_new_with_allocator_uses_injected_allocator),
+        cmocka_unit_test(test_symbol_table_add_symbol_default_case),
+        cmocka_unit_test(test_symbol_table_add_symbol_reallocates),
+        cmocka_unit_test(test_tokenizer_opcode),
+        cmocka_unit_test(test_tokenizer_skips_whitespace),
+        cmocka_unit_test(test_tokenizer_consecutive_commas),
+        cmocka_unit_test(test_tokenizer_empty_line),
+        cmocka_unit_test(test_tokenizer_blank_line),
+        cmocka_unit_test(test_tokenizer_end_is_sticky),
+        cmocka_unit_test(test_tokenizer_string_literal),
+        cmocka_unit_test(test_tokenizer_empty_string_literal),
+        cmocka_unit_test(test_tokenizer_unterminated_string),
 
     };
 

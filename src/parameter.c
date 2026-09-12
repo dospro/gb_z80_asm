@@ -12,7 +12,7 @@ bool is_bit_number(char number) {
     return false;
 }
 
-bool process_first_argument(struct Parameter *parameter, char *arg) {
+bool process_first_argument(Operand *parameter, char *arg) {
     parameter->string[0] = 0;
     parameter->type = RESERVED;
     if (arg[0] == '-') {
@@ -80,7 +80,7 @@ bool process_first_argument(struct Parameter *parameter, char *arg) {
     return true;
 }
 
-bool process_second_parameter(struct Parameter *parameter, char *arg) {
+bool process_second_parameter(Operand *parameter, char *arg) {
     parameter->string[0] = 0;
     parameter->type = RESERVED;
     if (arg[0] == '-') {
@@ -154,7 +154,7 @@ bool process_second_parameter(struct Parameter *parameter, char *arg) {
  * data structure Arguments with information about the
  * scanned arguments.
  */
-bool scan_arguments(struct Arguments *operation, char *arg1, char *arg2) {
+bool scan_arguments(OpcodeOperands *operation, char *arg1, char *arg2) {
     if (process_first_argument(&operation->arg1, arg1) == false) {
         printf("ERROR: Invalid first argument.\n");
         return false;

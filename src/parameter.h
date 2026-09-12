@@ -1,29 +1,31 @@
 #ifndef GB_Z80_ASM_PARAMETER_H
 #define GB_Z80_ASM_PARAMETER_H
+#include "opcode.h"
 
-#include <stdbool.h>
-
-enum ParamType {
+enum OperandType {
     RESERVED,
     BYTE,
     WORD,
     BIT
 };
 
-struct Parameter {
+typedef struct Operand Operand;
+struct Operand {
     char string[32];
+    String string_new;
     int value;
-    enum ParamType type;
+    enum OperandType type;
 };
 
-struct Arguments {
+typedef struct OpcodeOperands OpcodeOperands;
+struct OpcodeOperands {
     char opcode_args[64];
-    struct Parameter arg1;
-    struct Parameter arg2;
+    Operand arg1;
+    Operand arg2;
 };
 
-bool process_first_argument(struct Parameter *parameter, char *arg);
-bool process_second_parameter(struct Parameter *parameter, char *arg);
-bool scan_arguments(struct Arguments *operation, char *arg1, char *arg2);
+bool process_first_argument(Operand *parameter, char *arg);
+bool process_second_parameter(Operand *parameter, char *arg);
+bool scan_arguments(OpcodeOperands *operation, char *arg1, char *arg2);
 
 #endif //GB_Z80_ASM_PARAMETER_H
