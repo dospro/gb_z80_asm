@@ -13,13 +13,18 @@ add_executable(c_tests
         src/string.c
         src/opcode.c
         src/parameter.c
+        src/allocator.c
+        src/vector.c
         src/symbol.c
         src/tokenizer.c
+        src/fixups.c
         c_tests/main.c
+        c_tests/allocator_double.c
         c_tests/string_tests.c
         c_tests/string_buffer_tests.c
         c_tests/string_iterator_tests.c
         c_tests/opcode_tests.c
+        c_tests/vector_tests.c
         c_tests/symbol_tests.c
         c_tests/tokenizer_tests.c
         c_tests/fixups_tests.c)

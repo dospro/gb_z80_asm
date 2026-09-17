@@ -8,8 +8,10 @@
 #include "string_buffer_tests.h"
 #include "string_iterator_tests.h"
 #include "opcode_tests.h"
+#include "vector_tests.h"
 #include "symbol_tests.h"
 #include "tokenizer_tests.h"
+#include "fixups_tests.h"
 
 int main(int argc, char** argv)
 {
@@ -53,11 +55,25 @@ int main(int argc, char** argv)
         cmocka_unit_test(test_parse_opcode_two_operands),
         cmocka_unit_test(test_parse_opcode_second_param_variable),
         cmocka_unit_test(test_search_opcode),
+        cmocka_unit_test(test_vector_new_creates_empty_vector),
+        cmocka_unit_test(test_vector_new_rejects_overflowing_capacity),
+        cmocka_unit_test(test_vector_new_rejects_zero_element_size),
+        cmocka_unit_test(test_vector_new_with_allocator_uses_injected_allocator),
+        cmocka_unit_test(test_vector_new_with_allocator_reports_no_capacity_on_failure),
+        cmocka_unit_test(test_vector_free_is_idempotent_and_leaves_vector_reusable),
+        cmocka_unit_test(test_vector_push_default_case),
+        cmocka_unit_test(test_vector_push_reallocates),
+        cmocka_unit_test(test_vector_push_growth_releases_old_storage),
+        cmocka_unit_test(test_vector_push_growth_failure_leaves_vector_intact),
+        cmocka_unit_test(test_vector_push_grows_from_empty),
+        cmocka_unit_test(test_vector_push_rejects_null_arguments),
+        cmocka_unit_test(test_vector_at_rejects_out_of_range_index),
         cmocka_unit_test(test_symbol_table_new_creates_empty_table),
         cmocka_unit_test(test_symbol_table_new_rejects_overflowing_capacity),
         cmocka_unit_test(test_symbol_table_new_with_allocator_uses_injected_allocator),
         cmocka_unit_test(test_symbol_table_add_symbol_default_case),
         cmocka_unit_test(test_symbol_table_add_symbol_reallocates),
+        cmocka_unit_test(test_symbol_table_at_rejects_out_of_range_index),
         cmocka_unit_test(test_tokenizer_opcode),
         cmocka_unit_test(test_tokenizer_skips_whitespace),
         cmocka_unit_test(test_tokenizer_consecutive_commas),
@@ -67,6 +83,12 @@ int main(int argc, char** argv)
         cmocka_unit_test(test_tokenizer_string_literal),
         cmocka_unit_test(test_tokenizer_empty_string_literal),
         cmocka_unit_test(test_tokenizer_unterminated_string),
+        cmocka_unit_test(test_fixups_table_new_creates_empty_table),
+        cmocka_unit_test(test_fixups_table_new_rejects_overflowing_capacity),
+        cmocka_unit_test(test_fixups_table_new_with_allocator_uses_injected_allocator),
+        cmocka_unit_test(test_fixups_table_add_fixup_default_case),
+        cmocka_unit_test(test_fixups_table_add_fixup_reallocates),
+        cmocka_unit_test(test_fixups_table_at_rejects_out_of_range_index),
 
     };
 

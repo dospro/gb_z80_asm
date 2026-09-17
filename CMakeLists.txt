@@ -13,6 +13,8 @@ set(SOURCES
         src/cli.c
         src/string.c
         src/error_handler.c
+        src/allocator.c
+        src/vector.c
         src/symbol.c
         src/tokenizer.c
         src/tokenizer.h
