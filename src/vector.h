@@ -119,6 +119,27 @@ void Vector_free(Vector* vector);
 bool Vector_push(Vector* vector, const void* element);
 
 /**
+ * Appends copies of @p count consecutive elements to the vector.
+ *
+ * Each element occupies the vector's fixed @c element_size bytes. The append
+ * is all-or-nothing: if the required element count or byte size overflows, or
+ * if growth cannot allocate replacement storage, the vector is left exactly
+ * as it was. A zero @p count is a successful no-op and does not require
+ * @p elements to be non-null.
+ *
+ * @p elements may point into the vector's current storage. Such a pointer is
+ * valid only until this call returns, because a successful append may grow
+ * and release that storage.
+ *
+ * @param vector Vector to append to; nullptr is rejected.
+ * @param elements First of @p count consecutive elements to copy; nullptr is
+ *        rejected unless @p count is 0.
+ * @param count Number of elements to append, not a byte count.
+ * @return true if all elements were appended, false otherwise.
+ */
+bool Vector_append(Vector* vector, const void* elements, size_t count);
+
+/**
  * Returns the address of the element at @p index.
  *
  * The bound is @c size, not @c capacity: storage past the last pushed element

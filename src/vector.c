@@ -44,35 +44,7 @@ void Vector_free(Vector* const vector)
 
 bool Vector_push(Vector* const vector, const void* const element)
 {
-    if (vector == nullptr || element == nullptr || vector->element_size == 0)
-    {
-        return false;
-    }
-    if (vector->size >= vector->capacity)
-    {
-        const size_t new_capacity = vector->capacity == 0 ? 4 : vector->capacity * 2;
-        if (new_capacity > SIZE_MAX / vector->element_size)
-        {
-            return false;
-        }
-        void* const new_data = vector->allocator.alloc(vector->allocator.context, new_capacity * vector->element_size);
-        if (new_data == nullptr) return false;
-        if (vector->size > 0)
-        {
-            memcpy(new_data, vector->data, vector->size * vector->element_size);
-        }
-        if (vector->data != nullptr)
-        {
-            vector->allocator.free(vector->allocator.context, vector->data);
-        }
-        vector->data = new_data;
-        vector->capacity = new_capacity;
-    }
-
-    memcpy((char*)vector->data + vector->size * vector->element_size, element, vector->element_size);
-    vector->size++;
-
-    return true;
+    return Vector_append(vector, element, 1);
 }
 
 void* Vector_at(const Vector* const vector, const size_t index)
@@ -82,4 +54,55 @@ void* Vector_at(const Vector* const vector, const size_t index)
         return nullptr;
     }
     return (char*)vector->data + index * vector->element_size;
+}
+
+bool Vector_append(Vector* const vector, const void* const elements, const size_t count)
+{
+    if (vector == nullptr || vector->element_size == 0)
+    {
+        return false;
+    }
+    if (count == 0)
+    {
+        return true;
+    }
+    const size_t element_size = vector->element_size;
+    const size_t max_capacity = SIZE_MAX / element_size;
+    if (elements == nullptr || count > max_capacity - vector->size)
+    {
+        return false;
+    }
+    const size_t required = vector->size + count;
+    const size_t old_bytes = vector->size * element_size;
+
+    // The old block is released only after copying: elements may point into it.
+    void* old_data = nullptr;
+    if (required > vector->capacity)
+    {
+        size_t new_capacity = vector->capacity == 0
+                                  ? 4
+                                  : vector->capacity > max_capacity / 2
+                                  ? max_capacity
+                                  : vector->capacity * 2;
+        if (new_capacity < required) new_capacity = required;
+        if (new_capacity > max_capacity) new_capacity = max_capacity;
+
+        void* const new_data = vector->allocator.alloc(vector->allocator.context, new_capacity * element_size);
+        if (new_data == nullptr) return false;
+        if (old_bytes > 0)
+        {
+            memcpy(new_data, vector->data, old_bytes);
+        }
+        old_data = vector->data;
+        vector->data = new_data;
+        vector->capacity = new_capacity;
+    }
+
+    memcpy((char*)vector->data + old_bytes, elements, count * element_size);
+    if (old_data != nullptr)
+    {
+        vector->allocator.free(vector->allocator.context, old_data);
+    }
+    vector->size = required;
+    return true;
 }
